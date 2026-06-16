@@ -1,0 +1,2106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polymath WordVault — Verbatim Knowledge Base</title>
+
+  <!-- Roboto loaded so the "?" glyph (and optional labels) can render cleanly,
+       since Century Gothic's question mark is awkwardly shaped. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <!-- PDF.js (UMD build) for faithful, verbatim text-layer extraction from PDFs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    /* =========================================================================
+       RobotoQuestion trick — only the "?" character (U+003F) falls back to a
+       clean sans (Arial/Helvetica/Roboto). Everything else uses Century Gothic.
+       ========================================================================= */
+    @font-face {
+      font-family: 'RobotoQuestion';
+      src: local('Roboto'), local('Roboto Regular'), local('Arial'), local('Helvetica Neue'), local('Helvetica');
+      unicode-range: U+003F;
+    }
+
+    /* =========================================================================
+       1. DESIGN TOKENS  (Polymath design system — soft indigo "vault" accent)
+       ========================================================================= */
+    :root {
+      /* Surfaces */
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #FAFAFA;
+      --bg-tertiary: #F3F3F0;
+      --border-subtle: #E8E8E4;
+      --border-medium: #D4D4CF;
+
+      /* Text */
+      --text-primary: #1A1A1A;
+      --text-secondary: #5C5C5C;
+      --text-tertiary: #8A8A8A;
+      --text-inverse: #FFFFFF;
+
+      /* Accent — soft indigo (a calm, "knowledge vault" palette) */
+      --accent-light: #C5CAE9;
+      --accent-base: #7986CB;
+      --accent-dark: #5C6BC0;
+      --accent-bg: #E8EAF6;
+
+      /* Subject accent chips */
+      --subj-science: #64B5F6;
+      --subj-science-bg: #E3F2FD;
+      --subj-math: #81C784;
+      --subj-math-bg: #F1F8E9;
+      --subj-geometry: #9575CD;
+      --subj-geometry-bg: #EDE7F6;
+      --subj-general: #FFB74D;
+      --subj-general-bg: #FFF3E0;
+      --subj-assessment: #E57373;
+      --subj-assessment-bg: #FFEBEE;
+
+      /* Shadows */
+      --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06);
+      --shadow-md: 0 2px 4px rgba(0,0,0,0.05), 0 6px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 4px 6px rgba(0,0,0,0.05), 0 10px 30px rgba(0,0,0,0.1);
+      --shadow-button: 0 1px 2px rgba(0,0,0,0.05), 0 2px 8px rgba(0,0,0,0.08);
+      --shadow-button-hover: 0 2px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.12);
+
+      /* Spacing */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 40px;
+      --space-2xl: 64px;
+
+      /* Radius */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-full: 999px;
+
+      /* Typography */
+      --font-family: 'RobotoQuestion', 'Century Gothic', CenturyGothic, AppleGothic, sans-serif;
+      --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      --font-size-xs: 0.75rem;
+      --font-size-sm: 0.875rem;
+      --font-size-base: 1rem;
+      --font-size-md: 1.125rem;
+      --font-size-lg: 1.5rem;
+      --font-size-xl: 2rem;
+      --font-size-2xl: 2.5rem;
+      --line-height-tight: 1.2;
+      --line-height-normal: 1.6;
+
+      /* Transitions */
+      --transition-fast: 0.15s ease;
+      --transition-base: 0.25s ease;
+      --transition-slow: 0.4s ease;
+    }
+
+    /* =========================================================================
+       2. BASE RESET
+       ========================================================================= */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-family);
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      line-height: var(--line-height-normal);
+      min-height: 100vh;
+    }
+
+    img { max-width: 100%; display: block; }
+    input, button, select, textarea { font-family: inherit; }
+    button { cursor: pointer; }
+
+    /* =========================================================================
+       3. HEADER
+       ========================================================================= */
+    .polymath-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      padding: var(--space-sm) var(--space-lg);
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: saturate(150%) blur(8px);
+      -webkit-backdrop-filter: saturate(150%) blur(8px);
+    }
+
+    .polymath-logo {
+      height: 52px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .header-user {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 4px 4px 4px 12px;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+      max-width: 240px;
+    }
+    .header-user.hidden { display: none; }
+    .header-user .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      object-fit: cover; background: var(--accent-light);
+    }
+    .header-user .uname {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;
+    }
+
+    /* =========================================================================
+       4. BUTTONS
+       ========================================================================= */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+      padding: 11px 22px;
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      border: none;
+      transition: all var(--transition-base);
+      user-select: none;
+      outline: none;
+      white-space: nowrap;
+    }
+    .btn:focus-visible { outline: 2px solid var(--accent-dark); outline-offset: 2px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent-light);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-button);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-base);
+      color: var(--text-inverse);
+      box-shadow: var(--shadow-button-hover);
+      transform: translateY(-1px);
+    }
+    .btn-primary:active:not(:disabled) { transform: translateY(1px) scale(0.98); }
+
+    .btn-secondary {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-medium);
+      box-shadow: var(--shadow-xs);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      border-color: var(--accent-base);
+      color: var(--accent-dark);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-button);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 8px 14px;
+    }
+    .btn-ghost:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }
+
+    .btn-danger {
+      background: var(--subj-assessment-bg);
+      color: #C62828;
+      border: 1px solid #FFCDD2;
+    }
+    .btn-danger:hover:not(:disabled) { background: #FFCDD2; transform: translateY(-1px); }
+
+    .btn-sm { padding: 7px 14px; font-size: var(--font-size-sm); }
+    .btn-icon {
+      width: 40px; height: 40px; padding: 0;
+      border-radius: 50%;
+    }
+
+    /* Button loading spinner */
+    .btn .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    .btn.loading .spinner { display: inline-block; }
+    .btn.loading .btn-label { opacity: 0.6; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* =========================================================================
+       5. LAYOUT
+       ========================================================================= */
+    .page-container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+    }
+
+    .page-title {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      text-align: center;
+      margin-bottom: var(--space-sm);
+    }
+    .page-subtitle {
+      font-size: var(--font-size-md);
+      font-weight: 400;
+      color: var(--text-secondary);
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto var(--space-xl);
+    }
+
+    .section {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: var(--space-lg) var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+
+    .section-heading {
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-xs);
+    }
+    .section-heading .emoji { font-size: 1.3rem; }
+    .section-desc {
+      font-size: var(--font-size-sm);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-lg);
+      line-height: 1.6;
+    }
+
+    .label-text {
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-sm);
+      display: block;
+    }
+
+    /* =========================================================================
+       6. TABS
+       ========================================================================= */
+    .tab-bar {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-full);
+      margin-bottom: var(--space-lg);
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-full);
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      transition: all var(--transition-base);
+    }
+    .tab-btn.active {
+      background: var(--bg-primary);
+      color: var(--accent-dark);
+      box-shadow: var(--shadow-xs);
+    }
+    .tab-panel { display: none; animation: fadeInUp 0.35s ease both; }
+    .tab-panel.active { display: block; }
+
+    /* =========================================================================
+       7. FORM CONTROLS
+       ========================================================================= */
+    textarea.input-area {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      padding: var(--space-md);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-base);
+      line-height: 1.6;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+    textarea.input-area:focus {
+      outline: none;
+      border-color: var(--accent-base);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+      background: var(--bg-primary);
+    }
+
+    .text-input, select.select-input {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-base);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+    .text-input:focus, select.select-input:focus {
+      outline: none;
+      border-color: var(--accent-base);
+      box-shadow: 0 0 0 3px var(--accent-bg);
+      background: var(--bg-primary);
+    }
+
+    .field-row {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+      margin-top: var(--space-md);
+    }
+    .field-row > .field { flex: 1 1 160px; min-width: 140px; }
+    .field label { font-size: var(--font-size-xs); font-weight: 600; color: var(--text-tertiary); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    .helper-line {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+      margin-top: 6px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+      margin-top: var(--space-lg);
+      align-items: center;
+    }
+
+    /* =========================================================================
+       8. DROP ZONE  (PDF upload — drag/drop + click + paste)
+       ========================================================================= */
+    .drop-zone {
+      border: 2px dashed var(--border-medium);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+      text-align: center;
+      background: var(--bg-secondary);
+      transition: all var(--transition-base);
+      cursor: pointer;
+    }
+    .drop-zone:hover { border-color: var(--accent-base); background: var(--accent-bg); }
+    .drop-zone.dragover {
+      border-color: var(--accent-dark);
+      background: var(--accent-bg);
+      transform: scale(1.01);
+      box-shadow: var(--shadow-md);
+    }
+    .drop-zone .dz-icon { font-size: 2.4rem; margin-bottom: var(--space-sm); }
+    .drop-zone .dz-title { font-weight: 700; font-size: var(--font-size-md); margin-bottom: 4px; }
+    .drop-zone .dz-sub { font-size: var(--font-size-sm); color: var(--text-tertiary); }
+
+    .file-pill-list { margin-top: var(--space-md); display: flex; flex-direction: column; gap: var(--space-sm); }
+    .file-pill {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: 10px 14px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+    }
+    .file-pill .fp-name { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-pill .fp-meta { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+    .file-pill .fp-status { font-size: var(--font-size-xs); font-weight: 600; }
+    .fp-status.ok { color: #2E7D32; }
+    .fp-status.err { color: #C62828; }
+    .fp-status.busy { color: var(--accent-dark); }
+
+    /* =========================================================================
+       9. SEARCH
+       ========================================================================= */
+    .search-bar-wrap {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+    .search-input {
+      flex: 1 1 320px;
+      padding: 14px 18px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-md);
+      background: var(--bg-secondary);
+      transition: all var(--transition-base);
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent-base);
+      box-shadow: 0 0 0 4px var(--accent-bg);
+      background: var(--bg-primary);
+    }
+
+    .search-mode-toggle {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-full);
+      margin-top: var(--space-md);
+    }
+    .search-mode-toggle button {
+      padding: 6px 14px; border: none; background: transparent;
+      border-radius: var(--radius-full); font-size: var(--font-size-xs);
+      font-weight: 600; color: var(--text-secondary); transition: all var(--transition-base);
+    }
+    .search-mode-toggle button.active { background: var(--bg-primary); color: var(--accent-dark); box-shadow: var(--shadow-xs); }
+
+    .filter-row {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-md);
+    }
+    .filter-row select { flex: 1 1 150px; min-width: 130px; }
+
+    .ai-note {
+      margin-top: var(--space-md);
+      padding: var(--space-md);
+      background: var(--accent-bg);
+      border-left: 3px solid var(--accent-base);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+    .ai-note .ai-note-label {
+      font-size: var(--font-size-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--accent-dark); margin-bottom: 4px; display: block;
+    }
+
+    .best-match-wrap {
+      margin-top: var(--space-md);
+      border: 2px solid var(--accent-light);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .best-match-head {
+      background: var(--accent-bg);
+      padding: 8px var(--space-md);
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-dark);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* =========================================================================
+       10. ENTRY CARDS
+       ========================================================================= */
+    .results-list, .entries-list, .sources-list, .preview-list {
+      display: flex; flex-direction: column; gap: var(--space-md);
+      margin-top: var(--space-md);
+    }
+
+    .entry-card {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--bg-primary);
+      padding: var(--space-md) var(--space-lg);
+      transition: box-shadow var(--transition-base), transform var(--transition-base), border-color var(--transition-base);
+      animation: fadeInUp 0.4s ease both;
+    }
+    .entry-card:hover { box-shadow: var(--shadow-sm); border-color: var(--border-medium); }
+    .entry-card.in-best { border: none; }
+
+    .entry-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: var(--space-md); margin-bottom: var(--space-sm);
+    }
+    .entry-title { font-weight: 700; font-size: var(--font-size-md); line-height: 1.35; }
+    .entry-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-sm); align-items: center; }
+    .badge {
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .badge.type { background: var(--accent-bg); color: var(--accent-dark); text-transform: capitalize; }
+    .badge.subj-science { background: var(--subj-science-bg); color: #1565C0; }
+    .badge.subj-math { background: var(--subj-math-bg); color: #2E7D32; }
+    .badge.subj-geometry { background: var(--subj-geometry-bg); color: #5E35B1; }
+    .badge.subj-general { background: var(--subj-general-bg); color: #E65100; }
+    .badge.subj-assessment { background: var(--subj-assessment-bg); color: #C62828; }
+    .badge.verified { background: #E8F5E9; color: #2E7D32; }
+    .badge.unverified { background: #FFF8E1; color: #B26A00; cursor: help; }
+    .badge.kw { background: transparent; border: 1px dashed var(--border-medium); color: var(--text-tertiary); font-weight: 500; }
+    .badge.score { background: var(--accent-base); color: #fff; }
+
+    .verbatim-text {
+      font-size: var(--font-size-base);
+      line-height: 1.7;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-left: 3px solid var(--accent-light);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+      margin-top: 4px;
+    }
+    .verbatim-text.collapsed {
+      max-height: 7.5em;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent);
+      mask-image: linear-gradient(to bottom, #000 60%, transparent);
+    }
+    .expand-toggle {
+      font-size: var(--font-size-xs); font-weight: 600; color: var(--accent-dark);
+      background: none; border: none; padding: 6px 0 0; text-decoration: underline;
+    }
+
+    .entry-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-sm); margin-top: var(--space-sm); flex-wrap: wrap;
+    }
+    .entry-source-link {
+      font-size: var(--font-size-xs); color: var(--text-tertiary);
+    }
+
+    /* Mini icon button */
+    .mini-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border-subtle); background: var(--bg-primary);
+      font-size: 0.95rem; transition: all var(--transition-base);
+    }
+    .mini-btn:hover { background: var(--bg-tertiary); border-color: var(--border-medium); transform: translateY(-1px); }
+    .mini-btn.copied { background: #E8F5E9; border-color: #C8E6C9; }
+
+    /* =========================================================================
+       11. STATS
+       ========================================================================= */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      text-align: center;
+    }
+    .stat-num { font-size: var(--font-size-xl); font-weight: 700; color: var(--accent-dark); font-variant-numeric: tabular-nums; }
+    .stat-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+
+    /* Topic group */
+    .topic-group { margin-bottom: var(--space-lg); }
+    .topic-group-head {
+      display: flex; align-items: center; gap: var(--space-sm);
+      font-weight: 700; font-size: var(--font-size-md);
+      padding-bottom: var(--space-sm); margin-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .topic-group-head .count { font-size: var(--font-size-xs); color: var(--text-tertiary); font-weight: 600; }
+
+    /* =========================================================================
+       12. EMPTY / STATES
+       ========================================================================= */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-xl) var(--space-md);
+      color: var(--text-tertiary);
+    }
+    .empty-state .es-icon { font-size: 2.6rem; margin-bottom: var(--space-sm); opacity: 0.6; }
+    .empty-state .es-title { font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
+    .empty-state .es-sub { font-size: var(--font-size-sm); }
+
+    .signin-gate {
+      text-align: center;
+      padding: var(--space-2xl) var(--space-lg);
+    }
+    .signin-gate .sg-icon { font-size: 3rem; margin-bottom: var(--space-md); }
+
+    .inline-spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--accent-light);
+      border-top-color: var(--accent-dark);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* =========================================================================
+       13. TOASTS + MODAL
+       ========================================================================= */
+    #toastHost {
+      position: fixed; bottom: var(--space-lg); left: 50%; transform: translateX(-50%);
+      z-index: 9999; display: flex; flex-direction: column; gap: var(--space-sm); align-items: center;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      background: var(--text-primary); color: var(--text-inverse);
+      padding: 12px 20px; border-radius: var(--radius-full);
+      font-size: var(--font-size-sm); font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn 0.3s ease;
+      max-width: 90vw;
+    }
+    .toast.ok { background: #2E7D32; }
+    .toast.err { background: #C62828; }
+    .toast.info { background: var(--accent-dark); }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 9998;
+      background: rgba(0,0,0,0.4);
+      display: none; align-items: center; justify-content: center;
+      padding: var(--space-lg);
+      animation: fadeIn 0.2s ease;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      max-width: 460px; width: 100%;
+      padding: var(--space-lg);
+      animation: scaleIn 0.25s ease;
+    }
+    .modal-box h3 { font-size: var(--font-size-lg); margin-bottom: var(--space-sm); }
+    .modal-box p { color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-lg); line-height: 1.6; }
+    .modal-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; flex-wrap: wrap; }
+
+    /* =========================================================================
+       14. ANIMATIONS
+       ========================================================================= */
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+    .animate-in { animation: fadeInUp 0.5s ease-out both; }
+    .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+    .stagger > *:nth-child(2) { animation-delay: 0.08s; }
+    .stagger > *:nth-child(3) { animation-delay: 0.14s; }
+    .stagger > *:nth-child(4) { animation-delay: 0.20s; }
+    .stagger > *:nth-child(5) { animation-delay: 0.26s; }
+
+    .hidden { display: none !important; }
+
+    /* =========================================================================
+       15. RESPONSIVE
+       ========================================================================= */
+    @media (max-width: 600px) {
+      .page-container { padding: var(--space-lg) var(--space-md) var(--space-xl); }
+      .page-title { font-size: var(--font-size-xl); }
+      .polymath-logo { height: 42px; }
+      .section { padding: var(--space-md); }
+      .header-user .uname { max-width: 80px; }
+      .btn { padding: 10px 16px; font-size: var(--font-size-sm); }
+    }
+
+    /* =========================================================================
+       16. PRINT  (A4)
+       ========================================================================= */
+    @media print {
+      @page { size: A4; margin: 15mm 18mm; }
+      .polymath-header, .header-actions, #printBtn,
+      .tab-bar, .search-mode-toggle, .drop-zone, .file-pill-list,
+      .action-row, .filter-row, .entry-actions, .mini-btn,
+      #addContentSection, #sourcesSection, .expand-toggle, #toastHost,
+      .modal-overlay, .search-bar-wrap, .signin-gate { display: none !important; }
+      body { background: #fff; }
+      .section { box-shadow: none; border: none; padding: 0; }
+      .verbatim-text { background: #fff; border: 1px solid #ccc; }
+      .verbatim-text.collapsed { max-height: none; -webkit-mask-image: none; mask-image: none; }
+      .entry-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; }
+      .polymath-logo { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="polymath-header">
+    <img
+      src="https://dl.dropboxusercontent.com/scl/fi/h40yjlyg8ldefwfaa3dib/polymath-logo-sticker.png?rlkey=o1ra4taqy79gt9t8u096v82zj"
+      alt="Polymath Learning Centre"
+      class="polymath-logo" />
+    <div class="header-actions">
+      <div id="headerUser" class="header-user hidden">
+        <img id="headerAvatar" class="avatar" alt="" />
+        <span class="uname" id="headerUserName"></span>
+        <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign out</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="signInBtn">Sign in with Google</button>
+      <button class="btn btn-icon btn-secondary" id="printBtn" title="Print the vault" aria-label="Print">
+        <span aria-hidden="true">🖨️</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-container">
+    <h1 class="page-title animate-in">Polymath WordVault</h1>
+    <p class="page-subtitle animate-in">
+      Paste or upload your notes. The vault keeps every word <strong>exactly</strong> as written,
+      organises it by subject and topic, and lets you ask questions in plain English —
+      returning the matching passage <strong>verbatim</strong>, never reworded.
+    </p>
+
+    <!-- ===================== SIGN-IN GATE ===================== -->
+    <section class="section signin-gate" id="signinGate">
+      <div class="sg-icon">🔐</div>
+      <h2 class="section-heading" style="justify-content:center;">Sign in to open your vault</h2>
+      <p class="section-desc" style="text-align:center;">
+        Your entries are stored privately in your own Polymath account so they sync across devices.
+        Sign in with Google to begin.
+      </p>
+      <button class="btn btn-primary" id="gateSignInBtn">
+        <span class="spinner"></span><span class="btn-label">Sign in with Google</span>
+      </button>
+    </section>
+
+    <!-- ===================== APP BODY (hidden until signed in) ===================== -->
+    <div id="appBody" class="hidden">
+
+      <!-- ---------- SEARCH ---------- -->
+      <section class="section animate-in" id="searchSection">
+        <h2 class="section-heading"><span class="emoji">🔎</span> Ask your vault</h2>
+        <p class="section-desc">
+          Type a question like <em>"definition of forces"</em> or <em>"what is evaporation"</em>.
+          The AI finds the most relevant stored passages and shows them <strong>word for word</strong> —
+          the text you see is pulled straight from what you saved, with zero changes.
+        </p>
+
+        <div class="search-bar-wrap">
+          <input type="text" class="search-input" id="searchInput"
+                 placeholder="e.g. definition of forces" autocomplete="off" />
+          <button class="btn btn-primary" id="searchBtn">
+            <span class="spinner"></span><span class="btn-label">Search</span>
+          </button>
+          <button class="btn btn-ghost" id="clearSearchBtn">Clear</button>
+        </div>
+
+        <div class="search-mode-toggle" id="searchModeToggle">
+          <button data-mode="ai" class="active">✨ AI search</button>
+          <button data-mode="exact">🔤 Exact text</button>
+        </div>
+
+        <div class="filter-row">
+          <select class="select-input" id="filterSubject"><option value="">All subjects</option></select>
+          <select class="select-input" id="filterTopic"><option value="">All topics</option></select>
+          <select class="select-input" id="filterType"><option value="">All types</option></select>
+        </div>
+
+        <div id="searchOutput"></div>
+      </section>
+
+      <!-- ---------- ADD CONTENT ---------- -->
+      <section class="section animate-in" id="addContentSection">
+        <h2 class="section-heading"><span class="emoji">➕</span> Add content to the vault</h2>
+        <p class="section-desc">
+          Paste as much as you like, or drop in PDFs. Nothing is reworded — the AI only
+          <strong>splits</strong> your text into logical entries and <strong>labels</strong> each
+          with a subject, topic, type and keywords. Every entry is then checked to confirm it
+          matches your original text exactly.
+        </p>
+
+        <div class="tab-bar" id="addTabs">
+          <button class="tab-btn active" data-tab="paste">📋 Paste text</button>
+          <button class="tab-btn" data-tab="upload">📄 Upload PDF</button>
+        </div>
+
+        <!-- Paste panel -->
+        <div class="tab-panel active" id="tab-paste">
+          <label class="label-text" for="pasteArea">Paste your notes / extracted content</label>
+          <textarea class="input-area" id="pasteArea"
+            placeholder="Paste content here. You can paste a whole page of notes — the vault will split it into separate entries and keep every word unchanged."></textarea>
+          <div class="helper-line" id="pasteCounter">0 characters</div>
+        </div>
+
+        <!-- Upload panel -->
+        <div class="tab-panel" id="tab-upload">
+          <div class="drop-zone" id="dropZone" tabindex="0">
+            <div class="dz-icon">📄</div>
+            <div class="dz-title">Drop PDFs here, click to browse, or paste (Ctrl/Cmd + V)</div>
+            <div class="dz-sub">Text is extracted directly from the PDF's text layer, kept verbatim.</div>
+            <input type="file" id="fileInput" accept="application/pdf" multiple class="hidden" />
+          </div>
+          <div class="file-pill-list" id="filePillList"></div>
+          <label class="label-text" for="extractArea" style="margin-top:var(--space-lg);">Extracted text (review &amp; trim if needed — it will be saved exactly as shown)</label>
+          <textarea class="input-area" id="extractArea"
+            placeholder="Extracted PDF text will appear here. You may remove page headers/footers or unwanted lines before classifying — the vault saves precisely what is in this box."></textarea>
+          <div class="helper-line" id="extractCounter">0 characters</div>
+        </div>
+
+        <!-- Optional hints -->
+        <div class="field-row">
+          <div class="field">
+            <label for="hintSubject">Subject hint (optional)</label>
+            <select class="select-input" id="hintSubject">
+              <option value="">Let AI decide</option>
+              <option>Science</option>
+              <option>Math</option>
+              <option>Geometry</option>
+              <option>General</option>
+              <option>Assessment</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="hintTopic">Topic hint (optional)</label>
+            <input type="text" class="text-input" id="hintTopic" placeholder="e.g. Forces, Fractions" />
+          </div>
+          <div class="field">
+            <label for="hintGranularity">Split granularity</label>
+            <select class="select-input" id="hintGranularity">
+              <option value="balanced" selected>Balanced (one entry per idea)</option>
+              <option value="fine">Fine (split aggressively)</option>
+              <option value="coarse">Coarse (keep sections together)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="classifyBtn">
+            <span class="spinner"></span><span class="btn-label">✨ Classify &amp; preview</span>
+          </button>
+          <button class="btn btn-ghost" id="resetAddBtn">Reset</button>
+          <span class="helper-line" id="addStatus"></span>
+        </div>
+
+        <!-- Preview of AI-classified entries before saving -->
+        <div id="previewWrap" class="hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);margin-top:var(--space-lg);flex-wrap:wrap;">
+            <h3 class="section-heading" style="font-size:var(--font-size-md);margin:0;">
+              <span class="emoji">👀</span> Preview <span id="previewCount" class="badge"></span>
+            </h3>
+            <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" id="selectAllBtn">Select all</button>
+              <button class="btn btn-primary btn-sm" id="saveEntriesBtn">
+                <span class="spinner"></span><span class="btn-label">💾 Save selected to vault</span>
+              </button>
+            </div>
+          </div>
+          <p class="helper-line" id="verifySummary"></p>
+          <div class="preview-list" id="previewList"></div>
+        </div>
+      </section>
+
+      <!-- ---------- VAULT LIBRARY ---------- -->
+      <section class="section animate-in" id="vaultSection">
+        <h2 class="section-heading"><span class="emoji">🗄️</span> Your vault</h2>
+        <p class="section-desc">Everything you've saved, grouped by subject and topic. Click any passage to expand it; the 🗐 button copies the exact text.</p>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="filter-row" style="margin-bottom:var(--space-sm);">
+          <select class="select-input" id="vaultFilterSubject"><option value="">All subjects</option></select>
+          <select class="select-input" id="vaultFilterType"><option value="">All types</option></select>
+          <input type="text" class="text-input" id="vaultQuickFilter" placeholder="Quick filter by word…" style="flex:1 1 180px;" />
+        </div>
+
+        <div id="vaultOutput"></div>
+      </section>
+
+      <!-- ---------- SOURCES ---------- -->
+      <section class="section animate-in" id="sourcesSection">
+        <h2 class="section-heading"><span class="emoji">📚</span> Source documents</h2>
+        <p class="section-desc">
+          Each time you add content, the full original text is preserved here untouched — your
+          permanent record. Entries are a verbatim, searchable index into these sources.
+        </p>
+        <div id="sourcesOutput"></div>
+      </section>
+
+    </div><!-- /appBody -->
+  </main>
+
+  <!-- ===================== TOASTS + MODAL ===================== -->
+  <div id="toastHost"></div>
+
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box">
+      <h3 id="confirmTitle">Are you sure?</h3>
+      <p id="confirmBody">This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       APPLICATION SCRIPT  (Firebase AI Logic + Gemini — the CER "Science Quest"
+       serverless browser-AI stack, reused here as the firebase-gemini-ai layer)
+       ========================================================================= -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import {
+      getAI, getGenerativeModel, GoogleAIBackend, Schema
+    } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-ai.js";
+    import {
+      initializeAppCheck, ReCaptchaV3Provider
+    } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app-check.js";
+    import {
+      getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+    import {
+      getFirestore, collection, doc, setDoc, getDocs, deleteDoc,
+      query, where, writeBatch
+    } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    /* =======================================================================
+       CONFIG  (shared Polymath project — do not change these values)
+       ======================================================================= */
+    const firebaseConfig = {
+      apiKey: "AIzaSyAUSI3Uh28IeqASEp0JhH4QPaVt-O3meBo",
+      authDomain: "mathgen--app.firebaseapp.com",
+      projectId: "mathgen--app",
+      storageBucket: "mathgen--app.firebasestorage.app",
+      messagingSenderId: "165654161198",
+      appId: "1:165654161198:web:16c8bd60eb3a2aa7edbcbf",
+      measurementId: "G-0MWZFG211D"
+    };
+
+    // Paste the SAME reCAPTCHA v3 site key you used for the CER "Science Quest"
+    // app here. App Check gates Gemini quota/abuse. If left as the placeholder,
+    // App Check is skipped (fine for local testing; required if enforcement is on).
+    const RECAPTCHA_SITE_KEY = "PASTE_YOUR_RECAPTCHA_V3_SITE_KEY_HERE";
+
+    const ADMIN_EMAIL = "chungzhikai@gmail.com";
+    const GEMINI_MODEL = "gemini-3.5-flash";
+
+    const SOURCES_COLLECTION = "wordvault_sources";
+    const ENTRIES_COLLECTION = "wordvault_entries";
+
+    const ENTRY_TYPES = [
+      "definition", "concept", "example", "formula", "fact",
+      "process", "law", "list", "question", "answer", "other"
+    ];
+
+    /* =======================================================================
+       FIREBASE INIT
+       ======================================================================= */
+    const firebaseApp = initializeApp(firebaseConfig);
+
+    // App Check (optional but recommended — mirrors the CER app)
+    try {
+      if (RECAPTCHA_SITE_KEY && !RECAPTCHA_SITE_KEY.startsWith("PASTE_")) {
+        initializeAppCheck(firebaseApp, {
+          provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+          isTokenAutoRefreshEnabled: true
+        });
+      } else {
+        console.warn("[WordVault] App Check skipped — no reCAPTCHA site key set.");
+      }
+    } catch (err) {
+      console.warn("[WordVault] App Check init failed (continuing):", err);
+    }
+
+    const auth = getAuth(firebaseApp);
+    const db = getFirestore(firebaseApp);
+
+    // Firebase AI Logic — serverless, browser-side Gemini (no exposed key)
+    const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+
+    /* =======================================================================
+       firebase-gemini-ai HELPERS  (reconstructed CER stack)
+       ======================================================================= */
+
+    // Plain text generation
+    async function askGemini(prompt, options = {}) {
+      const model = getGenerativeModel(ai, {
+        model: options.model || GEMINI_MODEL,
+        systemInstruction: options.system || undefined
+      });
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    }
+
+    // Structured JSON generation with a response schema (reliable parsing)
+    async function askGeminiJSON(prompt, schema, options = {}) {
+      const model = getGenerativeModel(ai, {
+        model: options.model || GEMINI_MODEL,
+        systemInstruction: options.system || undefined,
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+          temperature: options.temperature ?? 0.1
+        }
+      });
+      const result = await model.generateContent(prompt);
+      const raw = result.response.text();
+      return safeParseJSON(raw);
+    }
+
+    // Multimodal (kept for parity with CER stack; used as a PDF fallback path)
+    async function askGeminiVision(textPrompt, parts, options = {}) {
+      const model = getGenerativeModel(ai, {
+        model: options.model || GEMINI_MODEL,
+        systemInstruction: options.system || undefined
+      });
+      const content = [{ text: textPrompt }, ...parts];
+      const result = await model.generateContent(content);
+      return result.response.text();
+    }
+
+    // Tiny in-memory cache so repeated identical searches don't re-bill the API
+    const _geminiCache = new Map();
+    async function askGeminiCachedJSON(cacheKey, prompt, schema, options = {}) {
+      if (_geminiCache.has(cacheKey)) return _geminiCache.get(cacheKey);
+      const res = await askGeminiJSON(prompt, schema, options);
+      _geminiCache.set(cacheKey, res);
+      return res;
+    }
+
+    function safeParseJSON(raw) {
+      if (raw == null) throw new Error("Empty AI response");
+      let s = String(raw).trim();
+      // Strip code fences if the model wrapped the JSON
+      s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      try {
+        return JSON.parse(s);
+      } catch (e) {
+        // Last-ditch: grab the outermost {...} or [...]
+        const firstObj = s.indexOf("{"); const firstArr = s.indexOf("[");
+        let start = -1;
+        if (firstObj === -1) start = firstArr;
+        else if (firstArr === -1) start = firstObj;
+        else start = Math.min(firstObj, firstArr);
+        const lastObj = s.lastIndexOf("}"); const lastArr = s.lastIndexOf("]");
+        const end = Math.max(lastObj, lastArr);
+        if (start !== -1 && end !== -1 && end > start) {
+          return JSON.parse(s.slice(start, end + 1));
+        }
+        throw e;
+      }
+    }
+
+    /* =======================================================================
+       AI SCHEMAS
+       ======================================================================= */
+    const classificationSchema = Schema.object({
+      properties: {
+        entries: Schema.array({
+          items: Schema.object({
+            properties: {
+              text: Schema.string({ description: "The passage copied EXACTLY from the source, character for character." }),
+              title: Schema.string({ description: "A short descriptive label you write for this entry (this MAY be your own words)." }),
+              subject: Schema.string({ description: "One of: Science, Math, Geometry, General, Assessment." }),
+              topic: Schema.string({ description: "A concise topic name, e.g. Forces, Fractions, Photosynthesis." }),
+              type: Schema.string({ description: "One of: definition, concept, example, formula, fact, process, law, list, question, answer, other." }),
+              keywords: Schema.array({ items: Schema.string() })
+            },
+            optionalProperties: []
+          })
+        })
+      }
+    });
+
+    const searchSchema = Schema.object({
+      properties: {
+        bestMatchId: Schema.string({ description: "The id of the single most relevant entry, or empty string if none fit." }),
+        reason: Schema.string({ description: "One short sentence on why the best match answers the question." }),
+        results: Schema.array({
+          items: Schema.object({
+            properties: {
+              id: Schema.string(),
+              relevance: Schema.number({ description: "0 to 100" })
+            }
+          })
+        })
+      }
+    });
+
+    /* =======================================================================
+       STATE
+       ======================================================================= */
+    const state = {
+      user: null,
+      entries: [],          // {id, text, title, subject, topic, type, keywords[], sourceId, verified, createdAtMs}
+      sources: [],          // {id, rawText, fileName, createdAtMs, entryCount}
+      previewEntries: [],   // staged, pre-save
+      searchMode: "ai",
+      lastSearchResults: null
+    };
+
+    /* =======================================================================
+       SMALL DOM HELPERS
+       ======================================================================= */
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, cls, html) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (html != null) n.innerHTML = html;
+      return n;
+    };
+    const escapeHTML = (s) => String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+    function toast(msg, kind = "info", ms = 3200) {
+      const host = $("toastHost");
+      const t = el("div", "toast " + kind, escapeHTML(msg));
+      host.appendChild(t);
+      setTimeout(() => {
+        t.style.transition = "opacity .3s ease, transform .3s ease";
+        t.style.opacity = "0"; t.style.transform = "translateY(8px)";
+        setTimeout(() => t.remove(), 320);
+      }, ms);
+    }
+
+    function setBtnLoading(btn, on) {
+      if (!btn) return;
+      btn.classList.toggle("loading", on);
+      btn.disabled = on;
+    }
+
+    // Promise-based confirm modal
+    let _confirmResolver = null;
+    function confirmDialog(title, body, okLabel = "Delete") {
+      return new Promise((resolve) => {
+        _confirmResolver = resolve;
+        $("confirmTitle").textContent = title;
+        $("confirmBody").textContent = body;
+        $("confirmOk").textContent = okLabel;
+        $("confirmModal").classList.add("open");
+      });
+    }
+    $("confirmCancel").addEventListener("click", () => { $("confirmModal").classList.remove("open"); if (_confirmResolver) _confirmResolver(false); });
+    $("confirmOk").addEventListener("click", () => { $("confirmModal").classList.remove("open"); if (_confirmResolver) _confirmResolver(true); });
+    $("confirmModal").addEventListener("click", (e) => { if (e.target === $("confirmModal")) { $("confirmModal").classList.remove("open"); if (_confirmResolver) _confirmResolver(false); } });
+
+    /* =======================================================================
+       TEXT NORMALISATION + VERBATIM VERIFICATION
+       The store of truth is the raw source. We confirm each AI-returned entry
+       actually appears in the source (whitespace-normalised) so we can promise
+       fidelity. If the AI altered the text, we flag it and try to re-anchor.
+       ======================================================================= */
+    function normalizeWS(s) {
+      return String(s == null ? "" : s)
+        .replace(/\u00A0/g, " ")      // nbsp -> space
+        .replace(/[ \t]+/g, " ")       // collapse spaces/tabs
+        .replace(/ *\n */g, "\n")      // trim around newlines
+        .replace(/\n{2,}/g, "\n")      // collapse blank lines
+        .trim()
+        .toLowerCase();
+    }
+
+    function verifyAgainstSource(entryText, sourceText) {
+      const normSrc = normalizeWS(sourceText);
+      const normEntry = normalizeWS(entryText);
+      if (!normEntry) return { verified: false, recovered: null };
+      if (normSrc.includes(normEntry)) return { verified: true, recovered: null };
+
+      // Anchor recovery: try to find the first ~8 words of the entry in the source
+      const words = normEntry.split(" ").filter(Boolean);
+      if (words.length >= 4) {
+        const anchor = words.slice(0, Math.min(8, words.length)).join(" ");
+        if (normSrc.includes(anchor)) {
+          return { verified: false, recovered: "anchor" }; // partially trustworthy
+        }
+      }
+      return { verified: false, recovered: null };
+    }
+
+    /* =======================================================================
+       PDF TEXT EXTRACTION  (PDF.js — verbatim text layer)
+       ======================================================================= */
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+
+    async function extractPdfText(file) {
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      let out = "";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        // Reconstruct lines using the text items' vertical positions
+        let lastY = null;
+        let line = "";
+        const lines = [];
+        for (const item of content.items) {
+          const y = item.transform ? item.transform[5] : null;
+          if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+            lines.push(line); line = "";
+          }
+          line += item.str;
+          if (item.hasEOL) { lines.push(line); line = ""; lastY = null; continue; }
+          lastY = y;
+        }
+        if (line) lines.push(line);
+        out += lines.join("\n");
+        if (p < pdf.numPages) out += "\n\n";
+      }
+      return out.trim();
+    }
+
+    /* =======================================================================
+       AUTH
+       ======================================================================= */
+    const googleProvider = new GoogleAuthProvider();
+
+    async function doSignIn(btn) {
+      try {
+        setBtnLoading(btn, true);
+        await signInWithPopup(auth, googleProvider);
+      } catch (err) {
+        console.error(err);
+        toast("Sign-in failed: " + (err.code || err.message), "err");
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    }
+
+    $("signInBtn").addEventListener("click", () => doSignIn($("signInBtn")));
+    $("gateSignInBtn").addEventListener("click", () => doSignIn($("gateSignInBtn")));
+    $("signOutBtn").addEventListener("click", () => signOut(auth));
+
+    onAuthStateChanged(auth, async (user) => {
+      state.user = user;
+      if (user) {
+        $("signInBtn").classList.add("hidden");
+        $("headerUser").classList.remove("hidden");
+        $("headerUserName").textContent = user.displayName || user.email || "Signed in";
+        if (user.photoURL) $("headerAvatar").src = user.photoURL; else $("headerAvatar").removeAttribute("src");
+        $("signinGate").classList.add("hidden");
+        $("appBody").classList.remove("hidden");
+        await loadAll();
+      } else {
+        $("signInBtn").classList.remove("hidden");
+        $("headerUser").classList.add("hidden");
+        $("signinGate").classList.remove("hidden");
+        $("appBody").classList.add("hidden");
+        state.entries = []; state.sources = [];
+      }
+    });
+
+    /* =======================================================================
+       FIRESTORE DATA LAYER  (scoped to owner uid)
+       ======================================================================= */
+    async function loadAll() {
+      try {
+        await Promise.all([loadSources(), loadEntries()]);
+        renderEverything();
+      } catch (err) {
+        console.error(err);
+        toast("Could not load your vault: " + (err.code || err.message), "err");
+      }
+    }
+
+    async function loadEntries() {
+      const q = query(collection(db, ENTRIES_COLLECTION), where("owner", "==", state.user.uid));
+      const snap = await getDocs(q);
+      state.entries = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    }
+
+    async function loadSources() {
+      const q = query(collection(db, SOURCES_COLLECTION), where("owner", "==", state.user.uid));
+      const snap = await getDocs(q);
+      state.sources = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    }
+
+    async function saveSource(rawText, fileName) {
+      const ref = doc(collection(db, SOURCES_COLLECTION));
+      const data = {
+        owner: state.user.uid,
+        rawText,
+        fileName: fileName || "Pasted text",
+        createdAtMs: Date.now(),
+        entryCount: 0
+      };
+      await setDoc(ref, data);
+      return ref.id;
+    }
+
+    async function saveEntriesBatch(entries, sourceId) {
+      const batch = writeBatch(db);
+      const created = [];
+      for (const e of entries) {
+        const ref = doc(collection(db, ENTRIES_COLLECTION));
+        const data = {
+          owner: state.user.uid,
+          text: e.text,
+          title: e.title || "",
+          subject: e.subject || "General",
+          topic: e.topic || "Uncategorised",
+          type: (e.type || "other").toLowerCase(),
+          keywords: Array.isArray(e.keywords) ? e.keywords.slice(0, 12) : [],
+          verified: !!e.verified,
+          sourceId: sourceId || null,
+          createdAtMs: Date.now()
+        };
+        batch.set(ref, data);
+        created.push({ id: ref.id, ...data });
+      }
+      // Update source entry count
+      if (sourceId) {
+        const srcRef = doc(db, SOURCES_COLLECTION, sourceId);
+        const src = state.sources.find(s => s.id === sourceId);
+        batch.set(srcRef, { entryCount: (src ? src.entryCount : 0) + entries.length }, { merge: true });
+      }
+      await batch.commit();
+      return created;
+    }
+
+    async function deleteEntryById(id) {
+      await deleteDoc(doc(db, ENTRIES_COLLECTION, id));
+      state.entries = state.entries.filter(e => e.id !== id);
+    }
+
+    async function deleteSourceById(id) {
+      // Cascade: delete all entries pointing at this source
+      const related = state.entries.filter(e => e.sourceId === id);
+      const batch = writeBatch(db);
+      related.forEach(e => batch.delete(doc(db, ENTRIES_COLLECTION, e.id)));
+      batch.delete(doc(db, SOURCES_COLLECTION, id));
+      await batch.commit();
+      state.entries = state.entries.filter(e => e.sourceId !== id);
+      state.sources = state.sources.filter(s => s.id !== id);
+    }
+
+    /* =======================================================================
+       INGESTION PIPELINE — classify (AI segments + labels), then verify
+       ======================================================================= */
+    const CLASSIFY_SYSTEM = [
+      "You are a meticulous archivist for a study-notes vault.",
+      "You are given a block of source text. Your job is to split it into logical entries",
+      "(one self-contained idea, definition, fact, example or step each) and label each entry.",
+      "",
+      "ABSOLUTE RULE — VERBATIM TEXT:",
+      "The 'text' field of every entry MUST be copied from the source EXACTLY, character for character:",
+      "same words, same spelling, same punctuation, same numbers, same capitalisation, same symbols.",
+      "Do NOT paraphrase, summarise, correct, translate, reorder, or 'improve' anything in 'text'.",
+      "Do NOT merge text that is not adjacent in the source. Do NOT invent text.",
+      "You MAY drop pure noise such as repeated page headers/footers or page numbers, but never alter wording you keep.",
+      "",
+      "You MAY use your own words ONLY in: 'title', 'topic', 'type', and 'keywords'.",
+      "'subject' must be one of: Science, Math, Geometry, General, Assessment.",
+      "'type' must be one of: definition, concept, example, formula, fact, process, law, list, question, answer, other.",
+      "Return between 1 and 60 entries. Prefer fewer, well-formed entries over fragments."
+    ].join("\n");
+
+    async function classifyContent() {
+      const activeTab = document.querySelector("#addTabs .tab-btn.active").dataset.tab;
+      const raw = (activeTab === "paste" ? $("pasteArea").value : $("extractArea").value).trim();
+      if (!raw) { toast("Add some text first.", "err"); return; }
+      if (raw.length < 12) { toast("That's a little short — add more content.", "err"); return; }
+
+      const subjectHint = $("hintSubject").value;
+      const topicHint = $("hintTopic").value.trim();
+      const granularity = $("hintGranularity").value;
+
+      const btn = $("classifyBtn");
+      setBtnLoading(btn, true);
+      $("addStatus").textContent = "Asking Gemini to split and label your content…";
+
+      const granularityNote = granularity === "fine"
+        ? "Split aggressively — each distinct fact or sentence-level idea can be its own entry."
+        : granularity === "coarse"
+        ? "Keep related sentences together — prefer larger section-level entries."
+        : "Use balanced judgement — one entry per coherent idea.";
+
+      const hintNote = [
+        subjectHint ? ("Subject hint from the user: " + subjectHint + " (use unless the text clearly says otherwise).") : "",
+        topicHint ? ("Topic hint from the user: " + topicHint + ".") : ""
+      ].filter(Boolean).join("\n");
+
+      const prompt = [
+        granularityNote,
+        hintNote,
+        "",
+        "SOURCE TEXT (between the markers — copy 'text' fields verbatim from inside here):",
+        "<<<SOURCE",
+        raw,
+        "SOURCE>>>"
+      ].join("\n");
+
+      let parsed;
+      try {
+        parsed = await askGeminiJSON(prompt, classificationSchema, { system: CLASSIFY_SYSTEM, temperature: 0.1 });
+      } catch (err) {
+        console.error(err);
+        setBtnLoading(btn, false);
+        $("addStatus").textContent = "";
+        const msg = (err && (err.code || err.message)) ? (err.code || err.message) : "unknown error";
+        toast("AI classification failed: " + msg, "err", 5000);
+        if (String(msg).toLowerCase().includes("app") || String(msg).toLowerCase().includes("403") || String(msg).toLowerCase().includes("permission")) {
+          toast("Tip: set your reCAPTCHA site key (App Check) to enable Gemini.", "info", 6000);
+        }
+        return;
+      }
+
+      const rawEntries = (parsed && Array.isArray(parsed.entries)) ? parsed.entries : [];
+      if (!rawEntries.length) {
+        setBtnLoading(btn, false);
+        $("addStatus").textContent = "";
+        toast("The AI didn't return any entries. Try different text.", "err");
+        return;
+      }
+
+      // Verify each entry against the raw source
+      let verifiedCount = 0, anchoredCount = 0, unverifiedCount = 0;
+      state.previewEntries = rawEntries.map((e, i) => {
+        const check = verifyAgainstSource(e.text || "", raw);
+        if (check.verified) verifiedCount++;
+        else if (check.recovered) anchoredCount++;
+        else unverifiedCount++;
+        return {
+          tempId: "p" + i,
+          selected: true,
+          text: e.text || "",
+          title: e.title || ("Entry " + (i + 1)),
+          subject: normalizeSubject(e.subject),
+          topic: (e.topic && e.topic.trim()) || (topicHint || "Uncategorised"),
+          type: normalizeType(e.type),
+          keywords: Array.isArray(e.keywords) ? e.keywords.filter(Boolean).slice(0, 12) : [],
+          verified: check.verified,
+          verifyState: check.verified ? "verified" : (check.recovered ? "anchored" : "unverified")
+        };
+      });
+
+      state._pendingRaw = raw;
+      state._pendingFileName = (activeTab === "upload" && state._lastUploadName) ? state._lastUploadName : "Pasted text";
+
+      setBtnLoading(btn, false);
+      $("addStatus").textContent = "";
+      renderPreview(verifiedCount, anchoredCount, unverifiedCount);
+      $("previewWrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      toast("Classified into " + rawEntries.length + " entries.", "ok");
+    }
+
+    function normalizeSubject(s) {
+      const v = String(s || "").trim().toLowerCase();
+      if (v.startsWith("sci")) return "Science";
+      if (v.startsWith("math") || v === "maths") return "Math";
+      if (v.startsWith("geo")) return "Geometry";
+      if (v.startsWith("assess") || v === "exam") return "Assessment";
+      if (["science","math","geometry","general","assessment"].includes(capitalize(v))) return capitalize(v);
+      return capitalize(v) || "General";
+    }
+    function normalizeType(t) {
+      const v = String(t || "").trim().toLowerCase();
+      return ENTRY_TYPES.includes(v) ? v : "other";
+    }
+    function capitalize(s){ s = String(s||""); return s ? s[0].toUpperCase()+s.slice(1) : s; }
+
+    /* =======================================================================
+       PREVIEW RENDER
+       ======================================================================= */
+    function renderPreview(verifiedCount, anchoredCount, unverifiedCount) {
+      const wrap = $("previewWrap");
+      wrap.classList.remove("hidden");
+      $("previewCount").textContent = state.previewEntries.length + " entries";
+
+      const parts = [];
+      parts.push(verifiedCount + " verified verbatim ✓");
+      if (anchoredCount) parts.push(anchoredCount + " partially matched (review)");
+      if (unverifiedCount) parts.push(unverifiedCount + " could not be matched (review before saving)");
+      $("verifySummary").textContent = parts.join(" · ");
+
+      const list = $("previewList");
+      list.innerHTML = "";
+      state.previewEntries.forEach((e) => list.appendChild(renderPreviewCard(e)));
+    }
+
+    function renderPreviewCard(e) {
+      const card = el("div", "entry-card");
+      const vbadge = e.verifyState === "verified"
+        ? '<span class="badge verified">✓ Verbatim</span>'
+        : e.verifyState === "anchored"
+        ? '<span class="badge unverified" data-tooltip="Start of this text was found in your source, but the full passage did not match exactly. Please review.">⚠ Partial match</span>'
+        : '<span class="badge unverified" data-tooltip="This text could not be located in your source exactly. It may have been altered — review before saving.">⚠ Not matched</span>';
+
+      card.innerHTML = `
+        <div class="entry-head">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;">
+            <input type="checkbox" class="prev-check" data-id="${e.tempId}" ${e.selected ? "checked" : ""} style="margin-top:5px;width:18px;height:18px;accent-color:var(--accent-base);" />
+            <span class="entry-title">${escapeHTML(e.title)}</span>
+          </label>
+        </div>
+        <div class="badge-row">
+          <span class="badge ${subjClass(e.subject)}">${escapeHTML(e.subject)}</span>
+          <span class="badge">${escapeHTML(e.topic)}</span>
+          <span class="badge type">${escapeHTML(e.type)}</span>
+          ${vbadge}
+          ${e.keywords.map(k => `<span class="badge kw">${escapeHTML(k)}</span>`).join("")}
+        </div>
+        <div class="verbatim-text">${escapeHTML(e.text)}</div>
+      `;
+      card.querySelector(".prev-check").addEventListener("change", (ev) => {
+        const target = state.previewEntries.find(x => x.tempId === e.tempId);
+        if (target) target.selected = ev.target.checked;
+      });
+      return card;
+    }
+
+    function subjClass(subject) {
+      const v = String(subject || "").toLowerCase();
+      if (v.startsWith("sci")) return "subj-science";
+      if (v.startsWith("math")) return "subj-math";
+      if (v.startsWith("geo")) return "subj-geometry";
+      if (v.startsWith("assess")) return "subj-assessment";
+      return "subj-general";
+    }
+
+    $("selectAllBtn").addEventListener("click", () => {
+      const allSelected = state.previewEntries.every(e => e.selected);
+      state.previewEntries.forEach(e => e.selected = !allSelected);
+      document.querySelectorAll(".prev-check").forEach(cb => {
+        const t = state.previewEntries.find(x => x.tempId === cb.dataset.id);
+        cb.checked = t ? t.selected : false;
+      });
+      $("selectAllBtn").textContent = allSelected ? "Select all" : "Deselect all";
+    });
+
+    $("saveEntriesBtn").addEventListener("click", async () => {
+      const chosen = state.previewEntries.filter(e => e.selected);
+      if (!chosen.length) { toast("Select at least one entry to save.", "err"); return; }
+      const btn = $("saveEntriesBtn");
+      setBtnLoading(btn, true);
+      try {
+        const sourceId = await saveSource(state._pendingRaw, state._pendingFileName);
+        await loadSources(); // refresh so entryCount update target exists
+        const created = await saveEntriesBatch(chosen, sourceId);
+        state.entries = [...created, ...state.entries];
+        await loadSources();
+        renderEverything();
+        // Reset add area
+        $("previewWrap").classList.add("hidden");
+        state.previewEntries = [];
+        $("pasteArea").value = ""; $("extractArea").value = "";
+        $("filePillList").innerHTML = "";
+        updateCounters();
+        toast("Saved " + created.length + " entries to your vault.", "ok");
+        $("vaultSection").scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (err) {
+        console.error(err);
+        toast("Save failed: " + (err.code || err.message), "err", 5000);
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+
+    /* =======================================================================
+       SEARCH — AI ranks, UI shows the stored verbatim text (never reworded)
+       ======================================================================= */
+    async function runSearch() {
+      const qstr = $("searchInput").value.trim();
+      const out = $("searchOutput");
+      if (!qstr) { out.innerHTML = ""; return; }
+
+      const subjF = $("filterSubject").value;
+      const topicF = $("filterTopic").value;
+      const typeF = $("filterType").value;
+
+      // Apply hard filters first
+      let pool = state.entries.filter(e =>
+        (!subjF || e.subject === subjF) &&
+        (!topicF || e.topic === topicF) &&
+        (!typeF || e.type === typeF)
+      );
+
+      if (!pool.length) {
+        out.innerHTML = `<div class="empty-state"><div class="es-icon">🗂️</div><div class="es-title">Nothing in that filter yet</div><div class="es-sub">Add content or loosen the filters.</div></div>`;
+        return;
+      }
+
+      if (state.searchMode === "exact") {
+        renderSearchResults(exactSearch(qstr, pool), null, null, qstr);
+        return;
+      }
+
+      // AI mode — narrow candidates locally first (keeps prompt small + cheap)
+      const candidates = rankLocally(qstr, pool).slice(0, 80);
+      const btn = $("searchBtn");
+      setBtnLoading(btn, true);
+      out.innerHTML = `<div class="empty-state"><span class="inline-spinner"></span><div class="es-sub" style="margin-top:10px;">Gemini is searching your vault…</div></div>`;
+
+      const indexForAI = candidates.map(e => ({
+        id: e.id,
+        title: e.title,
+        subject: e.subject,
+        topic: e.topic,
+        type: e.type,
+        keywords: e.keywords,
+        preview: (e.text || "").slice(0, 220)
+      }));
+
+      const sys = [
+        "You are a retrieval engine over a personal study-notes vault.",
+        "Given a user question and a list of entries (id + metadata + preview), pick the entries",
+        "that best answer the question and rank them. Do NOT write an answer of your own and do NOT",
+        "rewrite any entry — only return ids and relevance scores. If a definition is asked for,",
+        "favour entries whose type is 'definition' on that topic. Return up to 8 results, most relevant first."
+      ].join("\n");
+
+      const prompt = [
+        "USER QUESTION: " + qstr,
+        "",
+        "ENTRIES (JSON):",
+        JSON.stringify(indexForAI)
+      ].join("\n");
+
+      try {
+        const cacheKey = qstr + "|" + subjF + "|" + topicF + "|" + typeF + "|" + candidates.length;
+        const res = await askGeminiCachedJSON(cacheKey, prompt, searchSchema, { system: sys, temperature: 0.0 });
+        const ranked = (res.results || [])
+          .map(r => ({ entry: pool.find(e => e.id === r.id), relevance: r.relevance }))
+          .filter(x => x.entry);
+        const best = res.bestMatchId ? pool.find(e => e.id === res.bestMatchId) : null;
+        if (!ranked.length && !best) {
+          // fall back to local ranking so the user always gets something
+          renderSearchResults(rankLocally(qstr, pool).slice(0, 8).map(e => ({ entry: e, relevance: null })), null, "No strong AI match — showing closest text matches instead.", qstr);
+        } else {
+          renderSearchResults(ranked, best, res.reason, qstr);
+        }
+      } catch (err) {
+        console.error(err);
+        toast("AI search failed — showing text matches.", "err");
+        renderSearchResults(rankLocally(qstr, pool).slice(0, 8).map(e => ({ entry: e, relevance: null })), null, null, qstr);
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    }
+
+    // Local lexical ranking (for exact mode, candidate narrowing, and fallback)
+    function rankLocally(qstr, pool) {
+      const terms = normalizeWS(qstr).split(" ").filter(t => t.length > 1);
+      const scored = pool.map(e => {
+        const hay = normalizeWS([e.title, e.topic, e.type, (e.keywords || []).join(" "), e.text].join(" \n "));
+        let score = 0;
+        for (const t of terms) {
+          if (!t) continue;
+          const occurrences = hay.split(t).length - 1;
+          score += occurrences;
+          if (normalizeWS(e.title).includes(t)) score += 3;
+          if (normalizeWS(e.topic).includes(t)) score += 2;
+          if ((e.keywords || []).some(k => normalizeWS(k).includes(t))) score += 2;
+          if (e.type === "definition" && (qstr.toLowerCase().includes("define") || qstr.toLowerCase().includes("definition") || qstr.toLowerCase().includes("what is"))) score += 1;
+        }
+        return { e, score };
+      });
+      return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).map(s => s.e);
+    }
+
+    function exactSearch(qstr, pool) {
+      const norm = normalizeWS(qstr);
+      const hits = pool.filter(e => normalizeWS(e.text).includes(norm) ||
+        normalizeWS(e.title).includes(norm) ||
+        (e.keywords || []).some(k => normalizeWS(k).includes(norm)));
+      return hits.map(e => ({ entry: e, relevance: null }));
+    }
+
+    function renderSearchResults(ranked, best, reason, qstr) {
+      const out = $("searchOutput");
+      out.innerHTML = "";
+      if ((!ranked || !ranked.length) && !best) {
+        out.innerHTML = `<div class="empty-state"><div class="es-icon">🔍</div><div class="es-title">No matches found</div><div class="es-sub">Try different words, or switch search mode.</div></div>`;
+        return;
+      }
+
+      if (reason) {
+        const note = el("div", "ai-note");
+        note.innerHTML = `<span class="ai-note-label">✨ Why this matches</span>${escapeHTML(reason)}`;
+        out.appendChild(note);
+      }
+
+      if (best) {
+        const wrap = el("div", "best-match-wrap");
+        const head = el("div", "best-match-head", `<span>⭐ Best match — shown exactly as you saved it</span><button class="mini-btn" title="Copy verbatim" data-copy="${best.id}">🗐</button>`);
+        wrap.appendChild(head);
+        const card = renderEntryCard(best, { inBest: true, highlight: qstr });
+        wrap.appendChild(card);
+        wrap.querySelector("[data-copy]").addEventListener("click", () => copyText(best.text, head.querySelector(".mini-btn")));
+        out.appendChild(wrap);
+      }
+
+      const list = el("div", "results-list");
+      const bestId = best ? best.id : null;
+      ranked.filter(r => r.entry.id !== bestId).forEach(r => {
+        list.appendChild(renderEntryCard(r.entry, { relevance: r.relevance, highlight: qstr }));
+      });
+      out.appendChild(list);
+    }
+
+    /* =======================================================================
+       ENTRY CARD (shared by search + vault)
+       ======================================================================= */
+    function renderEntryCard(e, opts = {}) {
+      const card = el("div", "entry-card" + (opts.inBest ? " in-best" : ""));
+      const relBadge = (opts.relevance != null && !isNaN(opts.relevance))
+        ? `<span class="badge score">${Math.round(opts.relevance)}%</span>` : "";
+      const vBadge = e.verified
+        ? '<span class="badge verified" data-tooltip="Confirmed to match your original source exactly.">✓ Verbatim</span>'
+        : '<span class="badge unverified" data-tooltip="Saved, but did not exactly match the source when added.">⚠ Review</span>';
+
+      const src = state.sources.find(s => s.id === e.sourceId);
+      const srcLabel = src ? escapeHTML(src.fileName) : "—";
+
+      card.innerHTML = `
+        <div class="entry-head">
+          <div class="entry-title">${escapeHTML(e.title || "(untitled)")}</div>
+          <div class="entry-actions">
+            <button class="mini-btn" title="Copy verbatim text" data-act="copy">🗐</button>
+            <button class="mini-btn" title="Delete entry" data-act="del">🗑️</button>
+          </div>
+        </div>
+        <div class="badge-row">
+          ${relBadge}
+          <span class="badge ${subjClass(e.subject)}">${escapeHTML(e.subject)}</span>
+          <span class="badge">${escapeHTML(e.topic)}</span>
+          <span class="badge type">${escapeHTML(e.type)}</span>
+          ${vBadge}
+          ${(e.keywords || []).map(k => `<span class="badge kw">${escapeHTML(k)}</span>`).join("")}
+        </div>
+        <div class="verbatim-text ${(e.text && e.text.length > 320) ? "collapsed" : ""}">${highlightText(e.text, opts.highlight)}</div>
+        ${(e.text && e.text.length > 320) ? '<button class="expand-toggle">Show full text ▾</button>' : ""}
+        <div class="entry-foot">
+          <span class="entry-source-link">From: ${srcLabel}</span>
+        </div>
+      `;
+
+      const copyBtn = card.querySelector('[data-act="copy"]');
+      copyBtn.addEventListener("click", () => copyText(e.text, copyBtn));
+      card.querySelector('[data-act="del"]').addEventListener("click", async () => {
+        const ok = await confirmDialog("Delete this entry?", "“" + (e.title || "this entry") + "” will be permanently removed. The original source document is kept.", "Delete");
+        if (!ok) return;
+        try { await deleteEntryById(e.id); renderEverything(); refreshSearchAfterMutation(); toast("Entry deleted.", "ok"); }
+        catch (err) { toast("Delete failed: " + (err.code || err.message), "err"); }
+      });
+
+      const toggle = card.querySelector(".expand-toggle");
+      if (toggle) {
+        toggle.addEventListener("click", () => {
+          const vt = card.querySelector(".verbatim-text");
+          const collapsed = vt.classList.toggle("collapsed");
+          toggle.textContent = collapsed ? "Show full text ▾" : "Show less ▴";
+        });
+      }
+      return card;
+    }
+
+    function highlightText(text, q) {
+      const safe = escapeHTML(text);
+      if (!q) return safe;
+      const terms = normalizeWS(q).split(" ").filter(t => t.length > 2);
+      if (!terms.length) return safe;
+      let result = safe;
+      for (const t of terms) {
+        const re = new RegExp("(" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "gi");
+        result = result.replace(re, '<mark style="background:var(--accent-bg);color:var(--accent-dark);border-radius:3px;padding:0 2px;">$1</mark>');
+      }
+      return result;
+    }
+
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text || "").then(() => {
+        if (btn) { const old = btn.textContent; btn.textContent = "✓"; btn.classList.add("copied"); setTimeout(() => { btn.textContent = old; btn.classList.remove("copied"); }, 1200); }
+        toast("Copied verbatim text.", "ok", 1600);
+      }).catch(() => toast("Copy failed — select and copy manually.", "err"));
+    }
+
+    function refreshSearchAfterMutation() {
+      if ($("searchInput").value.trim()) runSearch();
+    }
+
+    /* =======================================================================
+       VAULT LIBRARY RENDER (grouped by subject → topic)
+       ======================================================================= */
+    function renderVault() {
+      const out = $("vaultOutput");
+      const subjF = $("vaultFilterSubject").value;
+      const typeF = $("vaultFilterType").value;
+      const quick = normalizeWS($("vaultQuickFilter").value);
+
+      let list = state.entries.filter(e =>
+        (!subjF || e.subject === subjF) &&
+        (!typeF || e.type === typeF) &&
+        (!quick || normalizeWS([e.title, e.topic, e.text, (e.keywords || []).join(" ")].join(" ")).includes(quick))
+      );
+
+      if (!state.entries.length) {
+        out.innerHTML = `<div class="empty-state"><div class="es-icon">📥</div><div class="es-title">Your vault is empty</div><div class="es-sub">Paste or upload some notes above to get started.</div></div>`;
+        return;
+      }
+      if (!list.length) {
+        out.innerHTML = `<div class="empty-state"><div class="es-icon">🔦</div><div class="es-title">No entries match those filters</div><div class="es-sub">Try clearing the subject, type or quick filter.</div></div>`;
+        return;
+      }
+
+      // Group subject -> topic
+      const groups = {};
+      for (const e of list) {
+        const sk = e.subject || "General";
+        const tk = e.topic || "Uncategorised";
+        groups[sk] = groups[sk] || {};
+        groups[sk][tk] = groups[sk][tk] || [];
+        groups[sk][tk].push(e);
+      }
+
+      out.innerHTML = "";
+      Object.keys(groups).sort().forEach(subject => {
+        const topics = groups[subject];
+        Object.keys(topics).sort().forEach(topic => {
+          const grp = el("div", "topic-group");
+          const items = topics[topic];
+          grp.appendChild(el("div", "topic-group-head",
+            `<span class="badge ${subjClass(subject)}">${escapeHTML(subject)}</span>
+             <span>${escapeHTML(topic)}</span>
+             <span class="count">${items.length} ${items.length === 1 ? "entry" : "entries"}</span>`));
+          const wrap = el("div", "entries-list");
+          items.forEach(e => wrap.appendChild(renderEntryCard(e, {})));
+          grp.appendChild(wrap);
+          out.appendChild(grp);
+        });
+      });
+    }
+
+    /* =======================================================================
+       SOURCES RENDER
+       ======================================================================= */
+    function renderSources() {
+      const out = $("sourcesOutput");
+      if (!state.sources.length) {
+        out.innerHTML = `<div class="empty-state"><div class="es-icon">📭</div><div class="es-title">No source documents yet</div><div class="es-sub">Saved content will be archived here in full.</div></div>`;
+        return;
+      }
+      out.innerHTML = "";
+      const list = el("div", "sources-list");
+      state.sources.forEach(s => {
+        const count = state.entries.filter(e => e.sourceId === s.id).length;
+        const when = s.createdAtMs ? new Date(s.createdAtMs).toLocaleString() : "";
+        const card = el("div", "entry-card");
+        card.innerHTML = `
+          <div class="entry-head">
+            <div class="entry-title">${escapeHTML(s.fileName || "Pasted text")}</div>
+            <div class="entry-actions">
+              <button class="mini-btn" title="Copy full source" data-act="copysrc">🗐</button>
+              <button class="mini-btn" title="Delete source + its entries" data-act="delsrc">🗑️</button>
+            </div>
+          </div>
+          <div class="badge-row">
+            <span class="badge">${count} ${count === 1 ? "entry" : "entries"}</span>
+            <span class="badge">${(s.rawText || "").length.toLocaleString()} chars</span>
+            <span class="badge">${escapeHTML(when)}</span>
+          </div>
+          <div class="verbatim-text collapsed">${escapeHTML(s.rawText || "")}</div>
+          <button class="expand-toggle">Show full source ▾</button>
+        `;
+        const copyBtn = card.querySelector('[data-act="copysrc"]');
+        copyBtn.addEventListener("click", () => copyText(s.rawText, copyBtn));
+        card.querySelector('[data-act="delsrc"]').addEventListener("click", async () => {
+          const ok = await confirmDialog("Delete this source?", "“" + (s.fileName || "this source") + "” and its " + count + " entries will be permanently removed.", "Delete all");
+          if (!ok) return;
+          try { await deleteSourceById(s.id); renderEverything(); refreshSearchAfterMutation(); toast("Source and its entries deleted.", "ok"); }
+          catch (err) { toast("Delete failed: " + (err.code || err.message), "err"); }
+        });
+        const toggle = card.querySelector(".expand-toggle");
+        toggle.addEventListener("click", () => {
+          const vt = card.querySelector(".verbatim-text");
+          const collapsed = vt.classList.toggle("collapsed");
+          toggle.textContent = collapsed ? "Show full source ▾" : "Show less ▴";
+        });
+        list.appendChild(card);
+      });
+      out.appendChild(list);
+    }
+
+    /* =======================================================================
+       STATS + FILTER DROPDOWNS
+       ======================================================================= */
+    function renderStats() {
+      const grid = $("statsGrid");
+      const subjects = new Set(state.entries.map(e => e.subject));
+      const topics = new Set(state.entries.map(e => e.subject + "›" + e.topic));
+      const verified = state.entries.filter(e => e.verified).length;
+      const cards = [
+        ["Entries", state.entries.length],
+        ["Sources", state.sources.length],
+        ["Subjects", subjects.size],
+        ["Topics", topics.size],
+        ["Verified ✓", verified]
+      ];
+      grid.innerHTML = cards.map(([label, num]) =>
+        `<div class="stat-card"><div class="stat-num">${num}</div><div class="stat-label">${label}</div></div>`).join("");
+    }
+
+    function rebuildFilterOptions() {
+      const subjects = [...new Set(state.entries.map(e => e.subject))].sort();
+      const topics = [...new Set(state.entries.map(e => e.topic))].sort();
+      const types = [...new Set(state.entries.map(e => e.type))].sort();
+
+      fillSelect($("filterSubject"), subjects, "All subjects");
+      fillSelect($("filterTopic"), topics, "All topics");
+      fillSelect($("filterType"), types, "All types");
+      fillSelect($("vaultFilterSubject"), subjects, "All subjects");
+      fillSelect($("vaultFilterType"), types, "All types");
+    }
+    function fillSelect(sel, values, allLabel) {
+      const current = sel.value;
+      sel.innerHTML = `<option value="">${allLabel}</option>` +
+        values.map(v => `<option value="${escapeHTML(v)}">${escapeHTML(v)}</option>`).join("");
+      if (values.includes(current)) sel.value = current;
+    }
+
+    function renderEverything() {
+      renderStats();
+      rebuildFilterOptions();
+      renderVault();
+      renderSources();
+    }
+
+    /* =======================================================================
+       UI WIRING — tabs, counters, upload, search controls
+       ======================================================================= */
+    // Add-content tabs
+    document.querySelectorAll("#addTabs .tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#addTabs .tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        document.querySelectorAll("#addContentSection .tab-panel").forEach(p => p.classList.remove("active"));
+        $("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    function updateCounters() {
+      $("pasteCounter").textContent = $("pasteArea").value.length.toLocaleString() + " characters";
+      $("extractCounter").textContent = $("extractArea").value.length.toLocaleString() + " characters";
+    }
+    $("pasteArea").addEventListener("input", updateCounters);
+    $("extractArea").addEventListener("input", updateCounters);
+
+    $("classifyBtn").addEventListener("click", classifyContent);
+    $("resetAddBtn").addEventListener("click", () => {
+      $("pasteArea").value = ""; $("extractArea").value = "";
+      $("filePillList").innerHTML = ""; $("previewWrap").classList.add("hidden");
+      state.previewEntries = []; updateCounters(); $("addStatus").textContent = "";
+    });
+
+    // ---- PDF upload (drag/drop + click + paste) ----
+    const dropZone = $("dropZone");
+    const fileInput = $("fileInput");
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault(); dropZone.classList.remove("dragover");
+      handleFiles([...e.dataTransfer.files]);
+    });
+    fileInput.addEventListener("change", () => handleFiles([...fileInput.files]));
+
+    // Paste a PDF straight onto the upload zone
+    window.addEventListener("paste", (e) => {
+      const uploadActive = document.querySelector('#addTabs .tab-btn[data-tab="upload"]').classList.contains("active");
+      if (!uploadActive) return;
+      const files = [...(e.clipboardData?.files || [])].filter(f => f.type === "application/pdf");
+      if (files.length) { e.preventDefault(); handleFiles(files); }
+    });
+
+    async function handleFiles(files) {
+      const pdfs = files.filter(f => f.type === "application/pdf");
+      if (!pdfs.length) { toast("Please provide PDF files.", "err"); return; }
+      const pillList = $("filePillList");
+      for (const file of pdfs) {
+        const pill = el("div", "file-pill",
+          `<span aria-hidden="true">📄</span><span class="fp-name">${escapeHTML(file.name)}</span><span class="fp-meta">${(file.size/1024).toFixed(0)} KB</span><span class="fp-status busy">extracting…</span>`);
+        pillList.appendChild(pill);
+        const statusEl = pill.querySelector(".fp-status");
+        try {
+          const text = await extractPdfText(file);
+          const existing = $("extractArea").value;
+          $("extractArea").value = existing
+            ? existing + "\n\n--- " + file.name + " ---\n" + text
+            : text;
+          state._lastUploadName = file.name;
+          updateCounters();
+          statusEl.textContent = text.length ? ("✓ " + text.length.toLocaleString() + " chars") : "no text layer";
+          statusEl.className = "fp-status " + (text.length ? "ok" : "err");
+          if (!text.length) toast(file.name + " has no selectable text (it may be scanned).", "err", 5000);
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = "failed"; statusEl.className = "fp-status err";
+          toast("Could not read " + file.name, "err");
+        }
+      }
+    }
+
+    // ---- Search controls ----
+    $("searchBtn").addEventListener("click", runSearch);
+    $("searchInput").addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
+    $("clearSearchBtn").addEventListener("click", () => { $("searchInput").value = ""; $("searchOutput").innerHTML = ""; });
+    document.querySelectorAll("#searchModeToggle button").forEach(b => {
+      b.addEventListener("click", () => {
+        document.querySelectorAll("#searchModeToggle button").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        state.searchMode = b.dataset.mode;
+        if ($("searchInput").value.trim()) runSearch();
+      });
+    });
+    ["filterSubject", "filterTopic", "filterType"].forEach(id =>
+      $(id).addEventListener("change", () => { if ($("searchInput").value.trim()) runSearch(); }));
+
+    // ---- Vault filters ----
+    ["vaultFilterSubject", "vaultFilterType"].forEach(id => $(id).addEventListener("change", renderVault));
+    let quickTimer = null;
+    $("vaultQuickFilter").addEventListener("input", () => { clearTimeout(quickTimer); quickTimer = setTimeout(renderVault, 180); });
+
+    // ---- Print ----
+    $("printBtn").addEventListener("click", () => window.print());
+
+    updateCounters();
+    console.log("[Polymath WordVault] ready · model:", GEMINI_MODEL);
+  </script>
+</body>
+</html>
