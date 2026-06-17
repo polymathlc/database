@@ -21,7 +21,7 @@ no server — open the file or host it as a static page.
 | Take the answer **word for word from the answer key in the last pages** | Set **"Answer-key pages at end"** when ingesting a PDF; those pages are transcribed verbatim and each question's answer is copied from them word for word (the AI only drafts an answer when no key is supplied). |
 | Edit any stored answer | In the **Question Bank**, each question has an ✏️ button to edit its answer key and approved keywords inline; changes are saved to Firestore. |
 | Students upload a question image → **how to do it, in approved keywords** | **🎓 Ask** — photograph/type a question; the tutor matches it to the bank + knowledge base and explains the method, **grounded only in your stored material** and weaving in your approved keywords. |
-| **Mark** student answers + give feedback | **✅ Mark** — upload/type a question and the student's answer; get a score, marks, points met/missed, and feedback in your voice. |
+| **Mark** student answers + give feedback | **✅ Mark** — paste or upload an image of the question and the student's answer; the AI crafts the correct answer by consulting the syllabus knowledge base + question bank, then scores it with points met/missed and feedback in your voice. |
 
 ---
 
