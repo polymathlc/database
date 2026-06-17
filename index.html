@@ -1316,37 +1316,35 @@
         <section class="section animate-in">
           <h2 class="section-heading"><span class="emoji">✅</span> Mark my answer</h2>
           <p class="section-desc">
-            Upload or type a <strong>question and the student's answer</strong>. The marker compares it to
-            the stored answer key and marking points, awards a score, and gives feedback in the teacher's
-            approved keywords.
+            Add the <strong>question</strong> and the <strong>student's answer</strong> — paste text or
+            upload an image for either. The marker crafts the correct answer by consulting your
+            <strong>syllabus knowledge base</strong> and <strong>question bank</strong>, then scores the
+            student's work and gives feedback in your approved keywords.
           </p>
 
-          <label class="label-text" for="markQSelect">Pick a stored question (or leave blank and upload/type one)</label>
-          <select class="select-input" id="markQSelect"><option value="">— Detect from what I upload/type —</option></select>
-
-          <div class="field-row" style="margin-top:var(--space-lg);">
+          <div class="field-row" style="margin-top:var(--space-md);">
             <div class="field" style="flex:1 1 100%;">
-              <label>Question (photo, or type below)</label>
+              <label>Question (paste below, or upload an image)</label>
               <div class="drop-zone" id="markQDropZone" tabindex="0" style="padding:var(--space-md);">
                 <div class="dz-icon" style="font-size:1.6rem;">❓</div>
-                <div class="dz-sub">Drop / paste / click to add a photo of the question (optional if picked above).</div>
+                <div class="dz-sub">Drop / paste / click to add a photo of the question.</div>
                 <input type="file" id="markQFileInput" accept="image/*" capture="environment" multiple class="hidden" />
               </div>
               <div class="thumb-grid" id="markQThumbGrid"></div>
-              <textarea class="input-area" id="markQText" style="min-height:90px;margin-top:var(--space-sm);" placeholder="Question text (optional if picked or photographed)"></textarea>
+              <textarea class="input-area" id="markQText" style="min-height:90px;margin-top:var(--space-sm);" placeholder="Paste the question here (or upload a photo above)"></textarea>
             </div>
           </div>
 
           <div class="field-row">
             <div class="field" style="flex:1 1 100%;">
-              <label>Student's answer (photo, or type below)</label>
+              <label>Student's answer (paste below, or upload an image)</label>
               <div class="drop-zone" id="markADropZone" tabindex="0" style="padding:var(--space-md);">
                 <div class="dz-icon" style="font-size:1.6rem;">✍️</div>
                 <div class="dz-sub">Drop / paste / click to add a photo of the student's answer.</div>
                 <input type="file" id="markAFileInput" accept="image/*" capture="environment" multiple class="hidden" />
               </div>
               <div class="thumb-grid" id="markAThumbGrid"></div>
-              <textarea class="input-area" id="markAText" style="min-height:120px;margin-top:var(--space-sm);" placeholder="Student's answer text (or upload a photo above)"></textarea>
+              <textarea class="input-area" id="markAText" style="min-height:120px;margin-top:var(--space-sm);" placeholder="Paste the student's answer here (or upload a photo above)"></textarea>
             </div>
           </div>
 
@@ -3175,18 +3173,6 @@
       const topics = [...new Set(state.questions.map(q => q.topic))].sort();
       if ($("qFilterSubject")) fillSelect($("qFilterSubject"), subjects, "All subjects");
       if ($("qFilterTopic")) fillSelect($("qFilterTopic"), topics, "All topics");
-
-      const msel = $("markQSelect");
-      if (msel) {
-        const cur = msel.value;
-        msel.innerHTML = `<option value="">— Detect from what I upload/type —</option>` +
-          state.questions.map(q => `<option value="${q.id}">${escapeHTML(qShortLabel(q))}</option>`).join("");
-        if ([...msel.options].some(o => o.value === cur)) msel.value = cur;
-      }
-    }
-    function qShortLabel(q) {
-      const t = (q.questionText || "").replace(/\s+/g, " ").trim();
-      return (q.topic ? ("[" + q.topic + "] ") : "") + (t.length > 70 ? t.slice(0, 70) + "…" : (t || "(no text)"));
     }
 
     /* ---------- shared OCR of a single uploaded question / free text ---------- */
@@ -3314,52 +3300,75 @@
        ======================================================================= */
     const MARK_SYSTEM = [
       "You are a strict but fair Singapore-syllabus marker standing in for the teacher.",
-      "Compare the student's answer to the approved answer key and marking points.",
-      "Award marks per marking point and be specific about what was right and what was missing.",
-      "Write feedback in the teacher's encouraging voice, using the approved keywords.",
-      "When a stored answer key is provided, do not invent a different correct answer than it."
+      "STEP 1 — craft the correct answer to the question, grounded in the supplied SYLLABUS PASSAGES",
+      "(verbatim knowledge base) and QUESTION-BANK material. Prefer a stored answer key when one is",
+      "provided and it fits; otherwise derive the answer from the syllabus passages. Do not invent facts",
+      "the supplied material does not support — if grounding is thin, say so in the feedback.",
+      "STEP 2 — mark the student's answer against that correct answer: award marks per marking point, be",
+      "specific about what was right and what was missing, and write encouraging feedback using the",
+      "approved keywords. Put the correct answer you crafted in 'modelAnswer'."
     ].join("\n");
+
+    // Build the grounding context for marking: the best question-bank match + relevant syllabus passages.
+    function buildMarkContext(matched, kb) {
+      const lines = [];
+      if (matched) {
+        lines.push("MATCHED QUESTION-BANK ENTRY:");
+        if (matched.answerKey) lines.push("STORED ANSWER KEY (prefer this if it fits): " + matched.answerKey);
+        if ((matched.approvedKeywords || []).length) lines.push("APPROVED KEYWORDS: " + matched.approvedKeywords.join(", "));
+        if ((matched.markingPoints || []).length) lines.push("MARKING POINTS: " + matched.markingPoints.map(p => "• " + p).join("  "));
+      } else {
+        lines.push("No close match in the question bank — craft the answer from the syllabus passages below.");
+      }
+      if (kb.length) {
+        lines.push("", "SYLLABUS PASSAGES (verbatim knowledge base):");
+        kb.forEach(e => lines.push("[" + e.subject + " › " + e.topic + "] " + e.text));
+      } else {
+        lines.push("", "(No syllabus passages stored yet — rely on the question-bank material and standard syllabus knowledge, and note if grounding is thin.)");
+      }
+      return lines.join("\n");
+    }
 
     async function markAnswer() {
       const btn = $("markBtn"); setBtnLoading(btn, true);
       const status = $("markStatus"); const out = $("markOutput");
       out.innerHTML = spinnerBlock("Marking…");
       try {
-        const selId = $("markQSelect").value;
-        let q = selId ? state.questions.find(x => x.id === selId) : null;
+        // Question — paste and/or image (OCR)
         let questionText = $("markQText").value.trim();
         let figure = "";
-        if (!q && state.markQUploads.length) {
+        if (state.markQUploads.length) {
           status.textContent = "Reading the question…";
           const r = await ocrSingleQuestion(state.markQUploads);
-          questionText = questionText || r.questionText; figure = r.imageDescription || "";
+          questionText = [questionText, r.questionText].filter(Boolean).join("\n").trim() || r.questionText;
+          figure = r.imageDescription || "";
         }
-        if (!q && questionText) q = bestQuestionMatch(questionText);
-        if (q) { questionText = questionText || q.questionText; figure = figure || q.imageDescription || ""; }
-        if (!questionText) throw new Error("No question provided — pick one, type it, or upload a photo.");
+        if (!questionText) throw new Error("Add the question (paste it or upload an image).");
 
+        // Student answer — paste and/or image (OCR)
         let studentAnswer = $("markAText").value.trim();
         if (state.markAUploads.length) {
           status.textContent = "Reading the student's answer…";
           const ra = await ocrFreeText(state.markAUploads);
           studentAnswer = [studentAnswer, ra].filter(Boolean).join("\n").trim();
         }
-        if (!studentAnswer) throw new Error("Add the student's answer (type it or upload a photo).");
+        if (!studentAnswer) throw new Error("Add the student's answer (paste it or upload an image).");
 
-        status.textContent = "Comparing to the answer key…";
-        const ctx = q ? [
-          "APPROVED ANSWER KEY: " + (q.answerKey || "(none stored yet)"),
-          (q.approvedKeywords || []).length ? "APPROVED KEYWORDS: " + q.approvedKeywords.join(", ") : "",
-          (q.markingPoints || []).length ? "MARKING POINTS:\n" + q.markingPoints.map(p => "• " + p).join("\n") : ""
-        ].filter(Boolean).join("\n") : "No stored answer key — mark on syllabus-correct reasoning and note the absence of a stored key.";
+        // Consult the question bank + syllabus knowledge base, then craft the answer and mark.
+        status.textContent = "Consulting the syllabus & question bank…";
+        const matched = bestQuestionMatch(questionText);
+        if (matched) figure = figure || matched.imageDescription || "";
+        const kb = rankLocally(questionText, state.entries).slice(0, 6);
+
+        status.textContent = "Crafting the answer & marking…";
         const prompt = [
           "QUESTION:", questionText, figure ? ("FIGURE: " + figure) : "",
-          "", "STORED MARKING MATERIAL:", ctx,
+          "", "REFERENCE MATERIAL (syllabus + question bank):", buildMarkContext(matched, kb),
           "", "STUDENT'S ANSWER:", studentAnswer
         ].filter(Boolean).join("\n");
         const res = await askGeminiJSON(prompt, markSchema, { system: MARK_SYSTEM, temperature: 0.1 });
         renderMark(res);
-        logAttempt({ kind: "mark", questionId: q ? q.id : "", questionText, studentAnswer, score: res.score, verdict: res.verdict });
+        logAttempt({ kind: "mark", questionId: matched ? matched.id : "", questionText, studentAnswer, score: res.score, verdict: res.verdict });
       } catch (err) {
         console.error(err); out.innerHTML = "";
         toast(err.message || ("Marking failed: " + (err.code || err.message)), "err", 5000);
@@ -3390,7 +3399,7 @@
         ${missed ? `<div class="block-label">✗ What was missing or wrong</div><ul class="point-list missed">${missed}</ul>` : ""}
         <div class="block-label">🗣️ Feedback</div>
         <p class="approach-text">${escapeHTML(res.feedback || "")}</p>
-        ${res.modelAnswer ? `<div class="block-label">🔑 Model answer</div><div class="answer-block">${escapeHTML(res.modelAnswer)}</div>` : ""}
+        ${res.modelAnswer ? `<div class="block-label">🔑 Correct answer (crafted from your syllabus &amp; question bank)</div><div class="answer-block">${escapeHTML(res.modelAnswer)}</div>` : ""}
       `;
       panel.appendChild(body); out.appendChild(panel);
     }
@@ -3399,7 +3408,7 @@
       state.markQUploads = []; state.markAUploads = [];
       renderThumbGrid("markQThumbGrid", state.markQUploads);
       renderThumbGrid("markAThumbGrid", state.markAUploads);
-      $("markQText").value = ""; $("markAText").value = ""; $("markQSelect").value = "";
+      $("markQText").value = ""; $("markAText").value = "";
       $("markOutput").innerHTML = ""; $("markStatus").textContent = "";
     }
 
