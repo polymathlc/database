@@ -17,10 +17,11 @@ no server — open the file or host it as a static page.
 | Learn the syllabus textbook **word for word** | **📚 Knowledge Base** — paste text or upload digital PDFs; AI splits into verbatim entries that are verified against the original source. |
 | Feed **PDFs and screenshots** | **❓ Question Bank → Ingest** accepts images *and* PDFs (and pasted screenshots). |
 | **AI OCR the entire PDF** | Every page (or screenshot) is rendered to an image and read by Gemini vision — works even on **scanned papers with no text layer**. |
-| Convert each question's **text + picture → descriptive text + answer key** | Ingestion captures `questionText` (verbatim OCR), an `imageDescription` of any figure/diagram, and a drafted `answerKey` + `approvedKeywords` + `markingPoints`. |
+| Convert each question's **text + picture → descriptive text + answer key** | Ingestion captures `questionText` (verbatim OCR), an `imageDescription` of any figure/diagram, and an `answerKey` + `approvedKeywords` + `markingPoints`. |
+| Take the answer **word for word from the answer key in the last pages** | Set **"Answer-key pages at end"** when ingesting a PDF; those pages are transcribed verbatim and each question's answer is copied from them word for word (the AI only drafts an answer when no key is supplied). |
+| Edit any stored answer | In the **Question Bank**, each question has an ✏️ button to edit its answer key and approved keywords inline; changes are saved to Firestore. |
 | Students upload a question image → **how to do it, in approved keywords** | **🎓 Ask** — photograph/type a question; the tutor matches it to the bank + knowledge base and explains the method, **grounded only in your stored material** and weaving in your approved keywords. |
 | **Mark** student answers + give feedback | **✅ Mark** — upload/type a question and the student's answer; get a score, marks, points met/missed, and feedback in your voice. |
-| **Training mode**: describe a question, choose among **3 answers**, override/feedback | **🧠 Train** — the system shows each question and drafts 3 candidate answers; you pick one or write your own override, add approved keywords/feedback, and it becomes the canonical answer key. |
 
 ---
 
@@ -28,7 +29,7 @@ no server — open the file or host it as a static page.
 
 Sign‑in is with Google. Your account (`ADMIN_EMAIL` in `index.html`) is the **Teacher** and
 sees every tool. Everyone else is a **Student** and sees a read‑only Knowledge Base plus
-**Ask** and **Mark**. Ingestion and Training are teacher‑only.
+**Ask** and **Mark**. Ingesting and editing the Question Bank are teacher‑only.
 
 ---
 
@@ -40,9 +41,9 @@ All documents carry an `owner` (the writer's `uid`) and `createdAtMs`.
 - `wordvault_entries` — verbatim knowledge‑base passages: `text, title, subject, topic, type, keywords[], verified, sourceId`.
 - `wordvault_questions` — the question bank:
   `questionText, imageDescription, subject, topic, type, level, keywords[],`
-  `answerKey, approvedKeywords[], markingPoints[], thumb, trainingStatus ("unreviewed"|"approved"), sourceId`.
+  `answerKey, approvedKeywords[], markingPoints[], thumb, sourceId`.
+  The `answerKey` and `approvedKeywords` can be edited in place from the Question Bank.
 - `wordvault_attempts` — a log of Ask/Mark interactions (non‑fatal if it fails).
-- `wordvault_training` — a log of training decisions.
 
 Question thumbnails are downscaled JPEGs stored inline so each doc stays well under
 Firestore's 1 MB limit. Full‑resolution images are only used in‑memory at OCR time.
@@ -101,10 +102,10 @@ Students still write their own `wordvault_attempts`; only the teacher writes the
 
 1. **Load the syllabus** (Knowledge Base → paste or upload digital PDFs) so the tutor has
    verbatim passages to ground its explanations in.
-2. **Ingest questions** (Question Bank) from screenshots/scans; review the OCR, answer key
-   and approved keywords, then save.
-3. **Train** the bank: for each question pick the best of 3 drafted answers or write your
-   own. Trained questions are marked ✓ and power Ask & Mark.
+2. **Ingest questions** (Question Bank) from screenshots/scans. If the paper's answer key is
+   in its last pages, set **"Answer-key pages at end"** so each answer is taken word for word
+   from that key. Review the OCR, answer key and approved keywords, then save.
+3. **Edit** any answer later with the ✏️ button on a question card.
 4. Students **Ask** ("how do I do this?") and **Mark** ("is my answer right?").
 
 ---

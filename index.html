@@ -915,8 +915,6 @@
     }
     .kw-approved-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .badge.kw-approved { background: var(--accent-bg); color: var(--accent-dark); border: 1px solid var(--accent-light); font-weight: 600; }
-    .badge.train-approved { background: #E8F5E9; color: #2E7D32; }
-    .badge.train-unreviewed { background: #FFF8E1; color: #B26A00; }
 
     /* Editable preview fields */
     .edit-field {
@@ -985,32 +983,6 @@
     .point-list li .pmark { flex-shrink: 0; font-weight: 700; }
     .point-list.met li .pmark { color: #2E7D32; }
     .point-list.missed li .pmark { color: #C62828; }
-
-    /* =========================================================================
-       21. TRAINING STUDIO
-       ========================================================================= */
-    .train-stage { margin-top: var(--space-md); }
-    .candidate {
-      border: 2px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      margin-bottom: var(--space-md);
-      cursor: pointer;
-      transition: all var(--transition-base);
-      background: var(--bg-primary);
-    }
-    .candidate:hover { border-color: var(--accent-base); box-shadow: var(--shadow-sm); }
-    .candidate.selected { border-color: var(--accent-dark); background: var(--accent-bg); box-shadow: var(--shadow-sm); }
-    .candidate-head { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
-    .candidate-letter {
-      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--accent-light); color: var(--text-primary); font-weight: 700; font-size: var(--font-size-sm);
-    }
-    .candidate.selected .candidate-letter { background: var(--accent-dark); color: #fff; }
-    .candidate-note { font-size: var(--font-size-xs); color: var(--text-tertiary); font-weight: 600; }
-    .candidate-answer { font-size: var(--font-size-sm); line-height: 1.65; white-space: pre-wrap; word-wrap: break-word; }
-    .train-progress { font-size: var(--font-size-sm); color: var(--text-tertiary); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -1066,7 +1038,6 @@
         <button class="mode-tab teacher-only" data-mode="questions"><span class="mt-emoji">❓</span> Question Bank</button>
         <button class="mode-tab" data-mode="ask"><span class="mt-emoji">🎓</span> Ask</button>
         <button class="mode-tab" data-mode="mark"><span class="mt-emoji">✅</span> Mark</button>
-        <button class="mode-tab teacher-only" data-mode="train"><span class="mt-emoji">🧠</span> Train</button>
       </nav>
 
       <!-- ===================== MODE: KNOWLEDGE BASE ===================== -->
@@ -1231,9 +1202,10 @@
           <h2 class="section-heading"><span class="emoji">🪄</span> Ingest questions (AI OCR)</h2>
           <p class="section-desc">
             Drop <strong>screenshots, photos, or any PDF</strong> — including scanned papers with no text layer.
-            Gemini reads every page, captures each question's wording <strong>verbatim</strong>, writes a
-            <strong>description of any picture or diagram</strong>, and drafts an answer key with approved keywords.
-            Review and edit below, then save to the bank. Refine answers later in <strong>Train</strong>.
+            Gemini reads every page, captures each question's wording <strong>verbatim</strong>, and writes a
+            <strong>description of any picture or diagram</strong>. If the paper has an
+            <strong>answer key in its last pages</strong>, set the field below and each question's answer is
+            taken <strong>word for word</strong> from that key. Review and edit everything before saving.
           </p>
 
           <div class="drop-zone" id="qDropZone" tabindex="0">
@@ -1261,6 +1233,11 @@
             <div class="field">
               <label for="qHintLevel">Level hint (optional)</label>
               <input type="text" class="text-input" id="qHintLevel" placeholder="e.g. Primary 5, Sec 2" />
+            </div>
+            <div class="field">
+              <label for="qAnswerKeyPages">Answer-key pages at end</label>
+              <input type="number" class="text-input" id="qAnswerKeyPages" min="0" step="1" value="0" />
+              <div class="helper-line">How many pages at the very end are the answer key (0 = none). Their answers are copied verbatim.</div>
             </div>
           </div>
 
@@ -1294,11 +1271,6 @@
           <div class="filter-row" style="margin-bottom:var(--space-sm);">
             <select class="select-input" id="qFilterSubject"><option value="">All subjects</option></select>
             <select class="select-input" id="qFilterTopic"><option value="">All topics</option></select>
-            <select class="select-input" id="qFilterTrain">
-              <option value="">Any training state</option>
-              <option value="approved">✓ Teacher-approved</option>
-              <option value="unreviewed">⚠ Needs training</option>
-            </select>
             <input type="text" class="text-input" id="qQuickFilter" placeholder="Quick filter…" style="flex:1 1 160px;" />
           </div>
           <div id="qBankOutput"></div>
@@ -1390,26 +1362,6 @@
         </section>
       </div><!-- /mode-mark -->
 
-      <!-- ===================== MODE: TRAIN (teacher) ===================== -->
-      <div class="mode-panel" id="mode-train">
-        <section class="section animate-in">
-          <h2 class="section-heading"><span class="emoji">🧠</span> Training studio</h2>
-          <p class="section-desc">
-            The system shows you a question's description and drafts <strong>3 candidate answers</strong>.
-            Pick the best, or write your own <strong>overriding answer</strong>, and add feedback or
-            approved keywords. Your choice becomes the canonical answer key the tutor and marker use.
-          </p>
-
-          <div class="action-row" style="margin-top:0;">
-            <button class="btn btn-secondary btn-sm" id="trainNextBtn">⏭ Next question needing training</button>
-            <select class="select-input" id="trainPickSelect" style="flex:1 1 240px;"><option value="">Or pick a specific question…</option></select>
-            <span class="train-progress" id="trainProgress"></span>
-          </div>
-
-          <div id="trainStage" class="train-stage"></div>
-        </section>
-      </div><!-- /mode-train -->
-
     </div><!-- /appBody -->
   </main>
 
@@ -1477,7 +1429,6 @@
     const ENTRIES_COLLECTION = "wordvault_entries";
     const QUESTIONS_COLLECTION = "wordvault_questions";
     const ATTEMPTS_COLLECTION  = "wordvault_attempts";   // marking history
-    const TRAINING_COLLECTION  = "wordvault_training";    // training decisions log
 
     const ENTRY_TYPES = [
       "definition", "concept", "example", "formula", "fact",
@@ -1636,7 +1587,7 @@
               type: Schema.string({ description: "One of: multiple-choice, short-answer, structured, problem-sum, fill-in-the-blank, true-false, open-ended, other." }),
               level: Schema.string({ description: "Best-guess level if visible, e.g. 'Primary 5' or '' if unknown." }),
               keywords: Schema.array({ items: Schema.string() }),
-              answerKey: Schema.string({ description: "Your best worked solution and final answer, written the way a Singapore-syllabus teacher would. This is a DRAFT to be refined in training." }),
+              answerKey: Schema.string({ description: "If an answer key is supplied, the matching answer copied VERBATIM from it (word for word). Otherwise your best worked solution and final answer, written the way a Singapore-syllabus teacher would." }),
               approvedKeywords: Schema.array({ items: Schema.string(), description: "The essential terms/values a correct answer or explanation must contain." }),
               markingPoints: Schema.array({ items: Schema.string(), description: "Discrete points a marker should award, one mark idea each." })
             }
@@ -1672,29 +1623,6 @@
       }
     });
 
-    // Training — generate 3 candidate answers for the teacher to choose between
-    const trainCandidatesSchema = Schema.object({
-      properties: {
-        candidates: Schema.array({
-          items: Schema.object({
-            properties: {
-              answer: Schema.string({ description: "A complete candidate answer / worked solution." }),
-              approach: Schema.string({ description: "A few words naming the approach or how this candidate differs from the others." }),
-              keywords: Schema.array({ items: Schema.string(), description: "Approved keywords this candidate relies on." })
-            }
-          })
-        })
-      }
-    });
-
-    // Helper to derive approved keywords from a finalised answer (used in training)
-    const keywordExtractSchema = Schema.object({
-      properties: {
-        approvedKeywords: Schema.array({ items: Schema.string() }),
-        markingPoints: Schema.array({ items: Schema.string() })
-      }
-    });
-
     /* =======================================================================
        STATE
        ======================================================================= */
@@ -1703,7 +1631,7 @@
       isTeacher: false,     // admin email => teacher (full tools); else student
       entries: [],          // {id, text, title, subject, topic, type, keywords[], sourceId, verified, createdAtMs}
       sources: [],          // {id, rawText, fileName, createdAtMs, entryCount}
-      questions: [],        // {id, questionText, imageDescription, subject, topic, type, level, keywords[], answerKey, approvedKeywords[], markingPoints[], thumb, trainingStatus, sourceId, createdAtMs}
+      questions: [],        // {id, questionText, imageDescription, subject, topic, type, level, keywords[], answerKey, approvedKeywords[], markingPoints[], thumb, sourceId, createdAtMs}
       previewEntries: [],   // staged, pre-save (knowledge base)
       searchMode: "ai",
       lastSearchResults: null,
@@ -1712,8 +1640,7 @@
       qPreview: [],         // staged questions pre-save
       askUploads: [],
       markQUploads: [],
-      markAUploads: [],
-      train: { questionId: null, candidates: [], selected: -1 }
+      markAUploads: []
     };
 
     /* =======================================================================
@@ -2125,7 +2052,6 @@
           approvedKeywords: Array.isArray(q.approvedKeywords) ? q.approvedKeywords.filter(Boolean).slice(0, 16) : [],
           markingPoints: Array.isArray(q.markingPoints) ? q.markingPoints.filter(Boolean).slice(0, 16) : [],
           thumb: q.thumb || "",
-          trainingStatus: q.trainingStatus || "unreviewed",
           sourceId: sourceId || null,
           createdAtMs: Date.now()
         };
@@ -2152,13 +2078,6 @@
         const ref = doc(collection(db, ATTEMPTS_COLLECTION));
         await setDoc(ref, { owner: state.user.uid, createdAtMs: Date.now(), ...data });
       } catch (err) { console.warn("logAttempt failed (non-fatal):", err); }
-    }
-
-    async function logTraining(data) {
-      try {
-        const ref = doc(collection(db, TRAINING_COLLECTION));
-        await setDoc(ref, { owner: state.user.uid, createdAtMs: Date.now(), ...data });
-      } catch (err) { console.warn("logTraining failed (non-fatal):", err); }
     }
 
     function normalizeQType(t) {
@@ -2895,7 +2814,6 @@
       state._activeMode = mode;
       document.querySelectorAll(".mode-tab").forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
       document.querySelectorAll(".mode-panel").forEach(p => p.classList.toggle("active", p.id === ("mode-" + mode)));
-      if (mode === "train" && !state.train.questionId) loadTrainingQuestion(null);
     }
     document.querySelectorAll(".mode-tab").forEach(t =>
       t.addEventListener("click", () => switchMode(t.dataset.mode)));
@@ -2950,9 +2868,24 @@
       "• Transcribe its wording EXACTLY (verbatim OCR) into 'questionText' — keep numbering, parts (a)(b)(c), units, options and punctuation. Do NOT solve inside questionText.",
       "• In 'imageDescription', describe any picture/diagram/graph/table well enough to understand the question without seeing it ('' if none).",
       "• Classify subject (Science, Math, Geometry, General, Assessment), topic, and type.",
-      "• Draft a teacher-quality worked solution in 'answerKey', plus the essential 'approvedKeywords' and discrete 'markingPoints'.",
+      "ANSWER KEY RULE:",
+      "• If an ANSWER KEY (transcribed verbatim from the paper's last pages) is supplied, find the answer that matches this",
+      "  question by its number/label and copy it into 'answerKey' WORD FOR WORD — do not paraphrase, summarise or re-solve it.",
+      "• Only if there is no answer key, or no matching entry in it, may you draft a teacher-quality solution yourself.",
+      "• Put the essential 'approvedKeywords' and discrete 'markingPoints' for the question either way.",
       "Never fabricate a question that is not present. If a page has none, return none for it."
     ].join("\n");
+
+    // OCR the answer-key pages into one verbatim text block (preserves question numbers + exact answers).
+    async function ocrAnswerKey(parts) {
+      const sys = [
+        "You are transcribing the ANSWER KEY / marking scheme pages of an exam paper.",
+        "Transcribe everything EXACTLY as printed — every question number/label and its full answer, word for word.",
+        "Preserve numbering, order, units, options (e.g. MCQ letters) and line breaks. Do not solve, add or omit anything.",
+        "Return only the transcription."
+      ].join("\n");
+      return (await askGeminiVision("Transcribe these answer-key page(s) verbatim.", parts.map(stripPartMeta), { system: sys })).trim();
+    }
 
     async function extractQuestions() {
       if (!state.qUploads.length) { toast("Add screenshots or a PDF first.", "err"); return; }
@@ -2967,19 +2900,35 @@
         levelHint ? "Level hint: " + levelHint : ""
       ].filter(Boolean).join("\n");
 
-      // Process in small chunks so big PDFs don't overflow a single request
-      const SIZE = 6;
-      const chunks = [];
-      for (let i = 0; i < state.qUploads.length; i += SIZE) chunks.push(state.qUploads.slice(i, i + SIZE));
+      // Split off the answer-key pages from the end (clamped so we never consume every page).
+      let keyN = Math.max(0, parseInt($("qAnswerKeyPages").value || "0", 10) || 0);
+      if (keyN >= state.qUploads.length) keyN = 0;
+      const questionParts = keyN > 0 ? state.qUploads.slice(0, state.qUploads.length - keyN) : state.qUploads.slice();
+      const keyParts = keyN > 0 ? state.qUploads.slice(state.qUploads.length - keyN) : [];
 
       const all = [];
       try {
+        // 1) Transcribe the answer key verbatim (if specified) so answers can be copied word for word.
+        let answerKeyText = "";
+        if (keyParts.length) {
+          status.textContent = "Reading the answer key (last " + keyN + " page" + (keyN === 1 ? "" : "s") + ")…";
+          answerKeyText = await ocrAnswerKey(keyParts);
+        }
+        const keyBlock = answerKeyText
+          ? ["", "ANSWER KEY (verbatim — copy the matching answer WORD FOR WORD into answerKey):", "<<<ANSWER_KEY", answerKeyText, "ANSWER_KEY>>>"].join("\n")
+          : "";
+
+        // 2) Extract questions from the remaining pages in small chunks.
+        const SIZE = 6;
+        const chunks = [];
+        for (let i = 0; i < questionParts.length; i += SIZE) chunks.push(questionParts.slice(i, i + SIZE));
         for (let c = 0; c < chunks.length; c++) {
-          const from = c * SIZE + 1, to = Math.min((c + 1) * SIZE, state.qUploads.length);
-          status.textContent = "Reading " + (state.qUploads.length === 1 ? "the image" : ("pages " + from + "–" + to + " of " + state.qUploads.length)) + "…";
+          const from = c * SIZE + 1, to = Math.min((c + 1) * SIZE, questionParts.length);
+          status.textContent = "Reading " + (questionParts.length === 1 ? "the image" : ("question pages " + from + "–" + to + " of " + questionParts.length)) + "…";
           const prompt = [
-            "The following image(s) are pages/screenshots. Extract every question per the rules.",
-            hintNote
+            "The following image(s) are question pages/screenshots. Extract every question per the rules.",
+            hintNote,
+            keyBlock
           ].filter(Boolean).join("\n");
           const res = await askGeminiVisionJSON(prompt, chunks[c], questionExtractSchema, { system: QUESTION_OCR_SYSTEM, temperature: 0.15 });
           const qs = (res && Array.isArray(res.questions)) ? res.questions : [];
@@ -3089,6 +3038,7 @@
       renderThumbGrid("qThumbGrid", state.qUploads);
       $("qPreviewWrap").classList.add("hidden");
       $("qFilePillList").innerHTML = ""; $("qStatus").textContent = "";
+      $("qAnswerKeyPages").value = "0";
     }
 
     /* ---------- QUESTION BANK LIBRARY ---------- */
@@ -3096,22 +3046,22 @@
       const grid = $("qStatsGrid");
       if (grid) {
         const total = state.questions.length;
-        const approved = state.questions.filter(q => q.trainingStatus === "approved").length;
+        const subjects = new Set(state.questions.map(q => q.subject));
         const topics = new Set(state.questions.map(q => q.subject + "›" + q.topic));
         const withImg = state.questions.filter(q => q.imageDescription).length;
-        grid.innerHTML = [["Questions", total], ["Trained ✓", approved], ["Need training", total - approved], ["Topics", topics.size], ["With figures", withImg]]
+        const withAns = state.questions.filter(q => (q.answerKey || "").trim()).length;
+        grid.innerHTML = [["Questions", total], ["Subjects", subjects.size], ["Topics", topics.size], ["With figures", withImg], ["With answers", withAns]]
           .map(([l, n]) => `<div class="stat-card"><div class="stat-num">${n}</div><div class="stat-label">${l}</div></div>`).join("");
       }
       const out = $("qBankOutput");
       if (!out) return;
       if (!state.questions.length) { out.innerHTML = emptyState("🗃️", "No questions yet", "Use “Ingest questions” above to OCR screenshots or PDFs into the bank."); return; }
 
-      const subjF = $("qFilterSubject").value, topicF = $("qFilterTopic").value, trainF = $("qFilterTrain").value;
+      const subjF = $("qFilterSubject").value, topicF = $("qFilterTopic").value;
       const quick = normalizeWS($("qQuickFilter").value);
       const list = state.questions.filter(q =>
         (!subjF || q.subject === subjF) &&
         (!topicF || q.topic === topicF) &&
-        (!trainF || (trainF === "approved" ? q.trainingStatus === "approved" : q.trainingStatus !== "approved")) &&
         (!quick || normalizeWS([q.questionText, q.topic, q.answerKey, (q.keywords || []).join(" "), (q.approvedKeywords || []).join(" ")].join(" ")).includes(quick)));
 
       if (!list.length) { out.innerHTML = emptyState("🔦", "No questions match", "Loosen the filters."); return; }
@@ -3140,14 +3090,11 @@
 
     function renderQuestionCard(q) {
       const card = el("div", "q-card");
-      const trainBadge = q.trainingStatus === "approved"
-        ? '<span class="badge train-approved">✓ Trained</span>'
-        : '<span class="badge train-unreviewed">⚠ Needs training</span>';
       card.innerHTML = `
         <div class="entry-head">
           <div class="entry-title">${escapeHTML(q.topic)} — ${escapeHTML(q.type)}</div>
           <div class="entry-actions">
-            ${state.isTeacher ? '<button class="mini-btn" title="Train this question" data-act="train">🧠</button>' : ""}
+            ${state.isTeacher ? '<button class="mini-btn" title="Edit answer" data-act="edit">✏️</button>' : ""}
             <button class="mini-btn" title="Copy answer key" data-act="copy">🗐</button>
             ${state.isTeacher ? '<button class="mini-btn" title="Delete question" data-act="del">🗑️</button>' : ""}
           </div>
@@ -3156,7 +3103,6 @@
           <span class="badge ${subjClass(q.subject)}">${escapeHTML(q.subject)}</span>
           ${q.level ? `<span class="badge">${escapeHTML(q.level)}</span>` : ""}
           <span class="badge type">${escapeHTML(q.type)}</span>
-          ${trainBadge}
           ${(q.keywords || []).map(k => `<span class="badge kw">${escapeHTML(k)}</span>`).join("")}
         </div>
         <div class="q-body">
@@ -3164,12 +3110,13 @@
           <div class="q-main">
             <div class="q-text">${escapeHTML(q.questionText)}</div>
             ${q.imageDescription ? `<div class="block-label">🖼️ Picture description</div><div class="img-desc">${escapeHTML(q.imageDescription)}</div>` : ""}
-            <div class="block-label">🔑 Answer key</div>
-            <div class="answer-block">${escapeHTML(q.answerKey || "—")}</div>
-            ${(q.approvedKeywords || []).length ? `<div class="block-label">✅ Approved keywords</div><div class="kw-approved-row">${q.approvedKeywords.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
+            <div class="q-answer-area"></div>
           </div>
         </div>
       `;
+      const answerArea = card.querySelector(".q-answer-area");
+      renderAnswerView(answerArea, q, false);
+
       const copyBtn = card.querySelector('[data-act="copy"]');
       if (copyBtn) copyBtn.addEventListener("click", () => copyText(q.answerKey, copyBtn));
       const delBtn = card.querySelector('[data-act="del"]');
@@ -3179,9 +3126,48 @@
         try { await deleteQuestionById(q.id); renderEverything(); toast("Question deleted.", "ok"); }
         catch (err) { toast("Delete failed: " + (err.code || err.message), "err"); }
       });
-      const trainBtn = card.querySelector('[data-act="train"]');
-      if (trainBtn) trainBtn.addEventListener("click", () => { switchMode("train"); loadTrainingQuestion(q.id); });
+      const editBtn = card.querySelector('[data-act="edit"]');
+      if (editBtn) editBtn.addEventListener("click", () => renderAnswerView(answerArea, q, true));
       return card;
+    }
+
+    // Renders the answer key + approved keywords for a question; teachers can switch it
+    // into an inline editor and persist changes to Firestore.
+    function renderAnswerView(area, q, editing) {
+      if (editing) {
+        area.innerHTML = `
+          <div class="block-label">🔑 Answer key (editable)</div>
+          <textarea class="edit-field q-edit-answer" style="min-height:110px;">${escapeHTML(q.answerKey || "")}</textarea>
+          <div class="block-label">✅ Approved keywords (comma-separated)</div>
+          <input class="edit-field q-edit-kw" value="${escapeHTML((q.approvedKeywords || []).join(", "))}" />
+          <div class="action-row" style="margin-top:var(--space-sm);">
+            <button class="btn btn-primary btn-sm q-edit-save"><span class="spinner"></span><span class="btn-label">💾 Save answer</span></button>
+            <button class="btn btn-ghost btn-sm q-edit-cancel">Cancel</button>
+          </div>
+        `;
+        const saveBtn = area.querySelector(".q-edit-save");
+        saveBtn.addEventListener("click", async () => {
+          const answerKey = area.querySelector(".q-edit-answer").value;
+          const approvedKeywords = area.querySelector(".q-edit-kw").value.split(",").map(s => s.trim()).filter(Boolean).slice(0, 16);
+          setBtnLoading(saveBtn, true);
+          try {
+            await updateQuestion(q.id, { answerKey, approvedKeywords });
+            renderAnswerView(area, q, false);
+            rebuildQuestionSelectors();
+            toast("Answer updated.", "ok");
+          } catch (err) {
+            console.error(err); toast("Save failed: " + (err.code || err.message), "err");
+          } finally { setBtnLoading(saveBtn, false); }
+        });
+        area.querySelector(".q-edit-cancel").addEventListener("click", () => renderAnswerView(area, q, false));
+        area.querySelector(".q-edit-answer").focus();
+      } else {
+        area.innerHTML = `
+          <div class="block-label">🔑 Answer key</div>
+          <div class="answer-block">${escapeHTML(q.answerKey || "—")}</div>
+          ${(q.approvedKeywords || []).length ? `<div class="block-label">✅ Approved keywords</div><div class="kw-approved-row">${q.approvedKeywords.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
+        `;
+      }
     }
 
     function rebuildQuestionSelectors() {
@@ -3196,13 +3182,6 @@
         msel.innerHTML = `<option value="">— Detect from what I upload/type —</option>` +
           state.questions.map(q => `<option value="${q.id}">${escapeHTML(qShortLabel(q))}</option>`).join("");
         if ([...msel.options].some(o => o.value === cur)) msel.value = cur;
-      }
-      const tsel = $("trainPickSelect");
-      if (tsel) {
-        const cur = tsel.value;
-        tsel.innerHTML = `<option value="">Or pick a specific question…</option>` +
-          state.questions.map(q => `<option value="${q.id}">${(q.trainingStatus === "approved" ? "✓ " : "⚠ ") + escapeHTML(qShortLabel(q))}</option>`).join("");
-        if ([...tsel.options].some(o => o.value === cur)) tsel.value = cur;
       }
     }
     function qShortLabel(q) {
@@ -3424,166 +3403,6 @@
       $("markOutput").innerHTML = ""; $("markStatus").textContent = "";
     }
 
-    /* =======================================================================
-       TRAIN — teacher chooses among 3 candidate answers / overrides
-       ======================================================================= */
-    function nextTrainingQuestionId() {
-      const need = state.questions.filter(q => q.trainingStatus !== "approved");
-      const pool = need.length ? need : [];
-      return pool.length ? pool[0].id : null;
-    }
-    function currentTrainQuestion() { return state.questions.find(q => q.id === state.train.questionId) || null; }
-
-    async function loadTrainingQuestion(id) {
-      const qid = id || nextTrainingQuestionId();
-      state.train = { questionId: qid, candidates: [], selected: -1 };
-      if ($("trainPickSelect")) $("trainPickSelect").value = qid || "";
-      renderTrainStage();
-      if (qid) await generateCandidates();
-    }
-
-    async function generateCandidates() {
-      const q = currentTrainQuestion(); if (!q) return;
-      const genBtn = $("trainGenBtn"); if (genBtn) setBtnLoading(genBtn, true);
-      const sys = [
-        "You are preparing teaching options. Given a question (and any figure description), produce THREE",
-        "DISTINCT candidate answers a teacher might choose between — for example a fully-worked rigorous",
-        "solution, a concise method, and an alternative approach. Each must be complete and self-contained."
-      ].join("\n");
-      const prompt = [
-        "QUESTION:", q.questionText,
-        q.imageDescription ? ("FIGURE: " + q.imageDescription) : "",
-        q.answerKey ? ("CURRENT DRAFT ANSWER (vary/improve from this): " + q.answerKey) : "",
-        "Subject: " + q.subject + " · Topic: " + q.topic + " · Type: " + q.type
-      ].filter(Boolean).join("\n");
-      try {
-        const res = await askGeminiJSON(prompt, trainCandidatesSchema, { system: sys, temperature: 0.6 });
-        let cands = (res.candidates || []).slice(0, 3);
-        while (cands.length < 3) cands.push({ answer: "", approach: "(blank — write your own override)", keywords: [] });
-        state.train.candidates = cands; state.train.selected = -1;
-        renderCandidates();
-      } catch (err) {
-        console.error(err); toast("Could not draft candidates: " + (err.code || err.message), "err");
-      } finally { if (genBtn) setBtnLoading(genBtn, false); }
-    }
-
-    function renderTrainStage() {
-      const stage = $("trainStage"); if (!stage) return;
-      const approved = state.questions.filter(q => q.trainingStatus === "approved").length;
-      $("trainProgress").textContent = state.questions.length ? (approved + " / " + state.questions.length + " trained") : "";
-      const q = currentTrainQuestion();
-      if (!state.questions.length) { stage.innerHTML = emptyState("🧠", "Nothing to train yet", "Ingest some questions in the Question Bank first."); return; }
-      if (!q) { stage.innerHTML = emptyState("🎉", "All caught up", "Every question is trained. Pick one above to revise it."); return; }
-
-      stage.innerHTML = `
-        <div class="q-card">
-          <div class="badge-row">
-            <span class="badge ${subjClass(q.subject)}">${escapeHTML(q.subject)}</span>
-            <span class="badge">${escapeHTML(q.topic)}</span>
-            <span class="badge type">${escapeHTML(q.type)}</span>
-            ${q.trainingStatus === "approved" ? '<span class="badge train-approved">✓ Trained</span>' : '<span class="badge train-unreviewed">⚠ Needs training</span>'}
-          </div>
-          <div class="block-label">📝 Question</div>
-          <div class="q-text">${escapeHTML(q.questionText)}</div>
-          ${q.imageDescription ? `<div class="block-label">🖼️ Picture description</div><div class="img-desc">${escapeHTML(q.imageDescription)}</div>` : ""}
-        </div>
-        <div class="action-row" style="margin-top:var(--space-md);">
-          <button class="btn btn-secondary btn-sm" id="trainGenBtn"><span class="spinner"></span><span class="btn-label">✨ Draft / redraft 3 answers</span></button>
-          <span class="helper-line">Pick the best, or write your own override below.</span>
-        </div>
-        <div id="trainCandidates"></div>
-        <div class="block-label" style="margin-top:var(--space-lg);">✍️ Override answer (optional — wins over any selection)</div>
-        <textarea class="edit-field" id="trainOverride" style="min-height:90px;" placeholder="Type the exact answer to store as the canonical answer key (leave blank to use your selection above)."></textarea>
-        <div class="block-label">✅ Approved keywords (comma-separated)</div>
-        <input class="edit-field" id="trainKeywords" value="${escapeHTML((q.approvedKeywords || []).join(", "))}" placeholder="e.g. average speed, distance ÷ time, units" />
-        <div class="block-label">🗒️ Teacher feedback / notes (optional)</div>
-        <input class="edit-field" id="trainFeedback" value="${escapeHTML(q.trainingFeedback || "")}" placeholder="Any nuance the tutor & marker should respect" />
-        <div class="action-row">
-          <button class="btn btn-primary" id="trainSaveBtn"><span class="spinner"></span><span class="btn-label">💾 Save as approved answer</span></button>
-          <button class="btn btn-ghost" id="trainSkipBtn">Skip →</button>
-        </div>
-      `;
-      stage.querySelector("#trainGenBtn").addEventListener("click", generateCandidates);
-      stage.querySelector("#trainSaveBtn").addEventListener("click", saveTraining);
-      stage.querySelector("#trainSkipBtn").addEventListener("click", () => {
-        const rest = state.questions.filter(x => x.id !== q.id && x.trainingStatus !== "approved");
-        loadTrainingQuestion(rest.length ? rest[0].id : null);
-      });
-      renderCandidates();
-    }
-
-    function renderCandidates() {
-      const cwrap = $("trainCandidates"); if (!cwrap) return;
-      const cands = state.train.candidates;
-      cwrap.innerHTML = "";
-      if (!cands.length) {
-        cwrap.innerHTML = `<p class="helper-line" style="margin-top:var(--space-sm);">No candidates yet — click “Draft 3 answers”.</p>`;
-        return;
-      }
-      cands.forEach((c, i) => {
-        const card = el("div", "candidate" + (state.train.selected === i ? " selected" : ""));
-        card.innerHTML = `
-          <div class="candidate-head">
-            <span class="candidate-letter">${String.fromCharCode(65 + i)}</span>
-            <span class="candidate-note">${escapeHTML(c.approach || "")}</span>
-          </div>
-          <div class="candidate-answer">${escapeHTML(c.answer || "(blank)")}</div>
-          ${(c.keywords || []).length ? `<div class="kw-approved-row">${c.keywords.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
-        `;
-        card.addEventListener("click", () => selectCandidate(i));
-        cwrap.appendChild(card);
-      });
-    }
-
-    function selectCandidate(i) {
-      state.train.selected = i;
-      document.querySelectorAll("#trainCandidates .candidate").forEach((c, idx) => c.classList.toggle("selected", idx === i));
-      const cand = state.train.candidates[i];
-      const kwField = $("trainKeywords");
-      if (kwField && !kwField.value.trim() && cand && (cand.keywords || []).length) kwField.value = cand.keywords.join(", ");
-    }
-
-    async function saveTraining() {
-      const q = currentTrainQuestion(); if (!q) return;
-      const override = $("trainOverride").value.trim();
-      const sel = state.train.selected;
-      let answer = override;
-      if (!answer && sel >= 0 && state.train.candidates[sel]) answer = state.train.candidates[sel].answer || "";
-      if (!answer) { toast("Pick a candidate or write an override answer.", "err"); return; }
-
-      let approvedKeywords = $("trainKeywords").value.split(",").map(s => s.trim()).filter(Boolean);
-      const feedback = $("trainFeedback").value.trim();
-      const btn = $("trainSaveBtn"); setBtnLoading(btn, true);
-      try {
-        let markingPoints = q.markingPoints || [];
-        if (!approvedKeywords.length) {
-          try {
-            const ke = await askGeminiJSON(
-              "From this finalised answer, list the essential approved keywords and discrete marking points.\nANSWER:\n" + answer,
-              keywordExtractSchema, { temperature: 0.1 });
-            approvedKeywords = (ke.approvedKeywords || []).filter(Boolean);
-            if ((ke.markingPoints || []).length) markingPoints = ke.markingPoints.filter(Boolean);
-          } catch (e) { /* non-fatal */ }
-        }
-        const patch = {
-          answerKey: answer,
-          approvedKeywords: approvedKeywords.slice(0, 16),
-          markingPoints: (markingPoints || []).slice(0, 16),
-          trainingStatus: "approved",
-          trainingFeedback: feedback,
-          trainedAtMs: Date.now()
-        };
-        await updateQuestion(q.id, patch);
-        logTraining({ questionId: q.id, chosenIndex: sel, override: !!override, answer, approvedKeywords, feedback });
-        renderEverything();
-        toast("Saved. The tutor & marker will now use this answer.", "ok");
-        const rest = state.questions.filter(x => x.id !== q.id && x.trainingStatus !== "approved");
-        loadTrainingQuestion(rest.length ? rest[0].id : null);
-      } catch (err) {
-        console.error(err); toast("Save failed: " + (err.code || err.message), "err");
-      } finally { setBtnLoading(btn, false); }
-    }
-
     /* ---------- WIRING for the new modes ---------- */
     setupImageDrop("qDropZone", "qFileInput", () => state.qUploads, "qThumbGrid", { allowPdf: true, statusId: "qStatus" });
     setupImageDrop("askDropZone", "askFileInput", () => state.askUploads, "askThumbGrid", {});
@@ -3593,7 +3412,7 @@
     $("qExtractBtn").addEventListener("click", extractQuestions);
     $("qResetBtn").addEventListener("click", resetQIngest);
     $("qSaveBtn").addEventListener("click", saveQuestions);
-    ["qFilterSubject", "qFilterTopic", "qFilterTrain"].forEach(id => $(id).addEventListener("change", renderQuestionBank));
+    ["qFilterSubject", "qFilterTopic"].forEach(id => $(id).addEventListener("change", renderQuestionBank));
     let qQuickTimer = null;
     $("qQuickFilter").addEventListener("input", () => { clearTimeout(qQuickTimer); qQuickTimer = setTimeout(renderQuestionBank, 180); });
 
@@ -3602,9 +3421,6 @@
 
     $("markBtn").addEventListener("click", markAnswer);
     $("markResetBtn").addEventListener("click", resetMark);
-
-    $("trainNextBtn").addEventListener("click", () => loadTrainingQuestion(null));
-    $("trainPickSelect").addEventListener("change", (e) => { if (e.target.value) loadTrainingQuestion(e.target.value); });
 
     // Paste images/PDFs into whichever interactive mode is active
     window.addEventListener("paste", (e) => {
