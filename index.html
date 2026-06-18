@@ -2643,26 +2643,127 @@
       }
     }
 
+    /* =======================================================================
+       RETRIEVAL CORE  — one fuzzy, morphology- and typo-tolerant matcher shared
+       by every ranker (syllabus entries, question bank, mistakes). It cascades
+       through several signals, strongest first, so a stored passage is found even
+       when the wording differs:
+         1. exact phrase / adjacent-word (bigram) hit in the text   — strongest
+         2. exact token hit, weighted by field (title/topic/keywords > body)
+         3. CHARACTER-TRIGRAM fuzzy hit — catches word forms ("friction" ↔
+            "frictional") AND misspellings ("fictional" ↔ "frictional"),
+            which plain substring matching always missed.
+       Per-record indexes are cached in a WeakMap (built once, fast thereafter).
+       ======================================================================= */
+    const RX_STOP = new Set("a an and are as at be been being by for from had has have how if in into is it its of on or our than that the their them then there these this to was were what whats when where which who why will with you your we they he she his her do does did can could should would may might must not no".split(" "));
+    const RX_TEXT_CAP = 2000;   // cap body text per entry so the index stays light
+
+    function rxNorm(s) {
+      return String(s == null ? "" : s).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+    }
+    function rxTokens(s) {
+      return rxNorm(s).split(" ").filter(t => t.length >= 2 && !RX_STOP.has(t));
+    }
+    // Character trigrams (space-padded so word edges count); cross-word grams dropped.
+    function rxTrigrams(s) {
+      const t = " " + rxNorm(s).split(" ").join(" ") + " ";
+      const set = new Set();
+      for (let i = 0; i + 3 <= t.length; i++) {
+        const g = t.slice(i, i + 3);
+        if (g.charAt(1) !== " ") set.add(g);   // skip grams whose middle char is a space (cross-word noise)
+      }
+      return set;
+    }
+    // Fraction of a query token's trigrams present in a record's trigram set (0..1).
+    function rxFuzzy(token, triSet) {
+      if (!triSet || !triSet.size) return 0;
+      const g = rxTrigrams(token);
+      if (!g.size) return 0;
+      let hit = 0; g.forEach(x => { if (triSet.has(x)) hit++; });
+      return hit / g.size;
+    }
+    function rxBuildIndex(strongStr, fullStr, normStr) {
+      return {
+        stok: new Set(rxTokens(strongStr)),  // tokens in title/topic/keywords (strong signal)
+        tok:  new Set(rxTokens(fullStr)),    // all tokens incl. body
+        stri: rxTrigrams(strongStr),         // trigrams of strong fields (for fuzzy boosts)
+        tri:  rxTrigrams(fullStr),           // trigrams of everything (fuzzy fallback)
+        norm: normStr                        // normalized text for phrase/bigram substring tests
+      };
+    }
+    // Turn a raw query into reusable signals.
+    function rxPrepQuery(qstr) {
+      const norm = rxNorm(qstr);
+      const words = norm.split(" ").filter(Boolean);
+      const tokens = [...new Set(words.filter(w => w.length >= 2 && !RX_STOP.has(w)))];
+      const content = words.filter(w => w.length >= 2 && !RX_STOP.has(w));
+      const bigrams = [];
+      for (let i = 0; i < words.length - 1; i++) {
+        if (words[i].length >= 2 && words[i + 1].length >= 2 && !RX_STOP.has(words[i]) && !RX_STOP.has(words[i + 1]))
+          bigrams.push(words[i] + " " + words[i + 1]);
+      }
+      const phrase = (content.length >= 1 && content.length <= 4) ? content.join(" ") : "";
+      const wantsDef = /\b(define|definition|defined|what\s+is|what\s+are|whats|meaning|explain|describe)\b/.test(norm);
+      return { norm, tokens, bigrams: [...new Set(bigrams)], phrase, wantsDef };
+    }
+    // Score one prepared index against a prepared query. Higher = more relevant.
+    function rxScore(ix, q) {
+      let score = 0;
+      if (q.phrase && q.phrase.length >= 4 && ix.norm.indexOf(q.phrase) !== -1) score += 9;  // whole concept present
+      for (const bg of q.bigrams) if (ix.norm.indexOf(bg) !== -1) score += 4;                 // two-word phrase present
+      for (const t of q.tokens) {
+        if (ix.stok.has(t)) { score += 5; continue; }          // exact in title/topic/keywords
+        if (ix.tok.has(t))  { score += 3; continue; }          // exact in body
+        const fStrong = rxFuzzy(t, ix.stri);                   // fuzzy: word form or typo, strong field
+        if (fStrong >= 0.6) { score += 4 * fStrong; continue; }
+        const fBody = rxFuzzy(t, ix.tri);                      // fuzzy in body
+        if (fBody >= 0.6) score += 2.4 * fBody;
+      }
+      return score;
+    }
+    const MIN_QMATCH = 7;   // bar for a single confident question match (used by marking):
+                            // clears a real match (incl. minor typos) but rejects topic-only overlap
+
+    // --- Per-record cached indexes (WeakMap: rebuilt automatically when data reloads) ---
+    const _eIdx = new WeakMap();
+    function entryIndex(e) {
+      let ix = _eIdx.get(e); if (ix) return ix;
+      const kw = (e.keywords || []).join(" ");
+      const body = String(e.text || "").slice(0, RX_TEXT_CAP);
+      ix = rxBuildIndex([e.title, e.topic, kw].join(" "),
+                        [e.title, e.topic, e.type, kw, body].join(" \n "),
+                        rxNorm([e.title, kw, body].join(" ")));
+      _eIdx.set(e, ix); return ix;
+    }
+    const _qIdx = new WeakMap();
+    function questionIndex(q) {
+      let ix = _qIdx.get(q); if (ix) return ix;
+      const kw = [(q.keywords || []).join(" "), (q.approvedKeywords || []).join(" ")].join(" ");
+      const body = String(q.answerKey || "").slice(0, RX_TEXT_CAP);
+      ix = rxBuildIndex([q.topic, kw].join(" "),
+                        [q.questionText, q.imageDescription, q.topic, kw, body].join(" \n "),
+                        rxNorm([q.questionText, body, kw].join(" ")));
+      _qIdx.set(q, ix); return ix;
+    }
+    const _mIdx = new WeakMap();
+    function mistakeIndex(m) {
+      let ix = _mIdx.get(m); if (ix) return ix;
+      const kw = [(m.keywords || []).join(" "), (m.mistakeTags || []).join(" ")].join(" ");
+      ix = rxBuildIndex([m.topic, kw].join(" "),
+                        [m.questionText, m.topic, m.studentAnswer, m.teacherComment, kw].join(" \n "),
+                        rxNorm([m.questionText, m.teacherComment, kw].join(" ")));
+      _mIdx.set(m, ix); return ix;
+    }
+
     // Local lexical ranking (for exact mode, candidate narrowing, and fallback)
     function rankLocally(qstr, pool) {
-      const terms = [...new Set(normalizeWS(qstr).split(" ").filter(t => t.length > 1))];
-      const scored = pool.map(e => {
-        const title = normalizeWS(e.title), topic = normalizeWS(e.topic);
-        const kws = (e.keywords || []).map(k => normalizeWS(k));
-        const hay = normalizeWS([e.title, e.topic, e.type, kws.join(" "), e.text].join(" \n "));
-        let score = 0;
-        for (const t of terms) {
-          const occurrences = hay.split(t).length - 1;
-          if (!occurrences) continue;
-          score += Math.min(occurrences, 3);   // cap repetition so concise entries aren't buried by wordy ones
-          if (title.includes(t)) score += 4;    // a title hit is a strong topical signal
-          if (topic.includes(t)) score += 2;
-          if (kws.some(k => k.includes(t) || t.includes(k))) score += 4;  // keyword match, either direction
-          if (e.type === "definition" && (qstr.toLowerCase().includes("define") || qstr.toLowerCase().includes("definition") || qstr.toLowerCase().includes("what is"))) score += 1;
-        }
-        return { e, score };
-      });
-      return scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).map(s => s.e);
+      const q = rxPrepQuery(qstr);
+      if (!q.tokens.length) return [];
+      return pool
+        .map(e => ({ e, s: rxScore(entryIndex(e), q) + ((e.type === "definition" && q.wantsDef) ? 2 : 0) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .map(x => x.e);
     }
 
     function exactSearch(qstr, pool) {
@@ -3438,19 +3539,19 @@
       return (await askGeminiVision("Transcribe the text in these image(s).", parts.map(stripPartMeta), { system: sys })).trim();
     }
 
-    // Local best-match of a typed/OCR'd question against the stored bank
+    // Local best-match of a typed/OCR'd question against the stored bank. Used by
+    // marking, so it keeps a confidence bar (MIN_QMATCH) to avoid pulling in the
+    // wrong answer key — unlike the recall-friendly rankQuestions used by Ask.
     function bestQuestionMatch(text) {
       if (!state.questions.length || !text) return null;
-      const terms = new Set(normalizeWS(text).split(" ").filter(t => t.length > 2));
-      if (!terms.size) return null;
+      const q = rxPrepQuery(text);
+      if (!q.tokens.length) return null;
       let best = null, bestScore = 0;
-      for (const q of state.questions) {
-        const hay = new Set(normalizeWS([q.questionText, q.topic, (q.keywords || []).join(" ")].join(" ")).split(" ").filter(t => t.length > 2));
-        let s = 0; terms.forEach(t => { if (hay.has(t)) s++; });
-        const score = s / Math.max(4, terms.size);
-        if (score > bestScore) { bestScore = score; best = q; }
+      for (const item of state.questions) {
+        const s = rxScore(questionIndex(item), q);
+        if (s > bestScore) { bestScore = s; best = item; }
       }
-      return bestScore >= 0.18 ? best : null;
+      return bestScore >= MIN_QMATCH ? best : null;
     }
 
     /* =======================================================================
@@ -3466,20 +3567,24 @@
       "phrased in clear, natural language tailored to exactly what the student asked — do not just quote.",
       "Treat the SYLLABUS PASSAGES as authoritative even when brief — a short note or a list still counts.",
       "If a passage answers the question, USE it and do NOT claim the materials lack that information.",
-      "Give a direct 'answer' and a student-friendly 'explanation'. Only fill 'groundedNote' when NO supplied",
-      "passage is relevant to the question; otherwise leave it empty. Never invent facts."
+      "Students often MISSPELL or paraphrase terms (e.g. 'fictional force' for 'frictional force', or",
+      "'evaporate' for 'evaporation'). Match on MEANING, not exact spelling: if a supplied passage clearly",
+      "covers the concept the student is asking about, answer from it and use the correct term.",
+      "Give a direct 'answer' and a student-friendly 'explanation'. Only fill 'groundedNote' when NONE of the",
+      "supplied passages relate to the question even loosely; otherwise leave it empty. Never invent facts."
     ].join("\n");
 
-    // Rank stored questions by keyword overlap (question-bank retrieval).
-    function rankQuestions(text, n = 4) {
+    // Rank stored questions for question-bank retrieval (recall-friendly: no hard
+    // threshold — Gemini judges relevance from the supplied candidates).
+    function rankQuestions(text, n = 6) {
       if (!state.questions.length || !text) return [];
-      const terms = new Set(normalizeWS(text).split(" ").filter(t => t.length > 2));
-      if (!terms.size) return [];
-      return state.questions.map(q => {
-        const hay = new Set(normalizeWS([q.questionText, q.topic, (q.keywords || []).join(" "), (q.approvedKeywords || []).join(" ")].join(" ")).split(" ").filter(t => t.length > 2));
-        let s = 0; terms.forEach(t => { if (hay.has(t)) s++; });
-        return { q, score: s };
-      }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, n).map(x => x.q);
+      const q = rxPrepQuery(text);
+      if (!q.tokens.length) return [];
+      return state.questions
+        .map(item => ({ item, s: rxScore(questionIndex(item), q) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, n).map(x => x.item);
     }
 
     function buildAskContext(syllabus, questions) {
@@ -3531,8 +3636,8 @@
         // question text and the image description (a graph's "rate of evaporation" axis, a
         // figure's labels, etc.) so material is found even when the words are only in the picture.
         const retrievalQ = [questionText, imageDescription].filter(Boolean).join(" ");
-        const syllabus = rankLocally(retrievalQ, state.entries).slice(0, 8);
-        const questions = rankQuestions(retrievalQ, 6);
+        const syllabus = rankLocally(retrievalQ, state.entries).slice(0, 12);
+        const questions = rankQuestions(retrievalQ, 8);
         status.textContent = "Answering…";
         const prompt = [
           "STUDENT'S QUESTION:", questionText,
@@ -3644,7 +3749,7 @@
         status.textContent = "Consulting the syllabus, question bank & mistake bank…";
         const matched = bestQuestionMatch([questionText, figure].filter(Boolean).join(" "));
         if (matched) figure = figure || matched.imageDescription || "";
-        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 8);
+        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 10);
         const mistakes = rankMistakes([questionText, figure, studentAnswer].filter(Boolean).join(" "), 4);
 
         status.textContent = "Crafting the answer & marking…";
@@ -3724,16 +3829,16 @@
       "retrieval, and the 'subject' and 'topic'. The teacher will review and edit everything before saving."
     ].join("\n");
 
-    // Rank stored mistakes by keyword overlap with the question + student's answer.
+    // Rank stored mistakes by relevance to the question + student's answer.
     function rankMistakes(text, n = 4) {
       if (!state.mistakes.length || !text) return [];
-      const terms = new Set(normalizeWS(text).split(" ").filter(t => t.length > 2));
-      if (!terms.size) return [];
-      return state.mistakes.map(m => {
-        const hay = new Set(normalizeWS([m.questionText, m.topic, m.studentAnswer, m.teacherComment, (m.keywords || []).join(" "), (m.mistakeTags || []).join(" ")].join(" ")).split(" ").filter(t => t.length > 2));
-        let s = 0; terms.forEach(t => { if (hay.has(t)) s++; });
-        return { m, score: s };
-      }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, n).map(x => x.m);
+      const q = rxPrepQuery(text);
+      if (!q.tokens.length) return [];
+      return state.mistakes
+        .map(m => ({ m, s: rxScore(mistakeIndex(m), q) }))
+        .filter(x => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, n).map(x => x.m);
     }
 
     // Read the question + student answer from the Mistakes form. Any uploaded images are
@@ -3770,7 +3875,7 @@
         if (!studentAnswer) throw new Error("Add the student's answer first (paste it or upload an image).");
         status.textContent = "Consulting the syllabus & question bank…";
         const matched = bestQuestionMatch([questionText, figure].filter(Boolean).join(" "));
-        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 8);
+        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 10);
         const prompt = [
           "QUESTION:", questionText, figure ? ("FIGURE: " + figure) : "",
           "", "REFERENCE MATERIAL (syllabus + question bank):", buildMarkContext(matched, kb),
