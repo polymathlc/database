@@ -743,6 +743,36 @@
     .modal-box p { color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-lg); line-height: 1.6; }
     .modal-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; flex-wrap: wrap; }
 
+    /* Version badge (bottom-left) + changelog modal */
+    .version-badge {
+      position: fixed; left: 12px; bottom: 12px; z-index: 9990;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 11px; border-radius: var(--radius-full);
+      background: var(--bg-primary); color: var(--text-tertiary);
+      border: 1px solid var(--border-subtle); box-shadow: var(--shadow-xs);
+      font-size: var(--font-size-xs); font-weight: 600; font-variant-numeric: tabular-nums;
+      cursor: pointer; opacity: 0.72; transition: all var(--transition-base);
+    }
+    .version-badge:hover { opacity: 1; color: var(--text-primary); border-color: var(--accent-base); box-shadow: var(--shadow-button); }
+    .version-badge .vb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-medium); flex-shrink: 0; }
+    .version-badge.is-latest { opacity: 0.9; }
+    .version-badge.is-latest .vb-dot { background: #2E7D32; }
+    .version-badge.is-stale { opacity: 1; color: var(--accent-dark); border-color: var(--accent-base); background: var(--accent-bg); }
+    .version-badge.is-stale .vb-dot { background: var(--accent-dark); animation: vbPulse 1.4s ease-in-out infinite; }
+    @keyframes vbPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,0,0,0.0); } 50% { box-shadow: 0 0 0 5px rgba(0,0,0,0.06); } }
+
+    .changelog-list { display: flex; flex-direction: column; gap: var(--space-lg); text-align: left; }
+    .cl-entry { border-left: 2px solid var(--accent-light); padding-left: var(--space-md); }
+    .cl-entry.cl-current { border-left-color: var(--accent-base); }
+    .cl-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+    .cl-ver { font-weight: 700; color: var(--text-primary); font-size: var(--font-size-md); }
+    .cl-date { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+    .cl-now { font-size: var(--font-size-xs); font-weight: 700; color: #2E7D32; background: #E8F5E9; border-radius: var(--radius-sm); padding: 1px 7px; }
+    .cl-entry ul { margin: 0 0 0 1.1em; }
+    .cl-entry li { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 3px 0; line-height: 1.5; }
+    .modal-box.modal-scroll { max-height: 82vh; display: flex; flex-direction: column; }
+    .modal-box.modal-scroll .modal-scroll-body { overflow-y: auto; margin: 0 -4px var(--space-md); padding: 0 4px; }
+
     /* =========================================================================
        14. ANIMATIONS
        ========================================================================= */
@@ -779,7 +809,7 @@
       .tab-bar, .search-mode-toggle, .drop-zone, .file-pill-list,
       .action-row, .filter-row, .entry-actions, .mini-btn, .ai-tools,
       #addContentSection, #sourcesSection, .expand-toggle, #toastHost,
-      .modal-overlay, .search-bar-wrap, .signin-gate { display: none !important; }
+      .modal-overlay, .search-bar-wrap, .signin-gate, .version-badge { display: none !important; }
       body { background: #fff; }
       .section { box-shadow: none; border: none; padding: 0; }
       .verbatim-text { background: #fff; border: 1px solid #ccc; }
@@ -1645,6 +1675,22 @@
     </div>
   </div>
 
+  <!-- ===================== VERSION BADGE + CHANGELOG ===================== -->
+  <button class="version-badge" id="versionBadge" title="View version history" aria-label="Version — click for the changelog">
+    <span class="vb-dot" aria-hidden="true"></span><span id="versionLabel">v—</span>
+  </button>
+
+  <div class="modal-overlay" id="changelogModal">
+    <div class="modal-box modal-scroll">
+      <h3>🗒️ Version history</h3>
+      <p id="changelogStatus" style="margin-bottom:var(--space-md);"></p>
+      <div class="modal-scroll-body"><div class="changelog-list" id="changelogList"></div></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="changelogClose">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- =========================================================================
        APPLICATION SCRIPT  (Firebase AI Logic + Gemini — the CER "Science Quest"
        serverless browser-AI stack, reused here as the firebase-gemini-ai layer)
@@ -1698,6 +1744,36 @@
     const ATTEMPTS_COLLECTION  = "wordvault_attempts";   // marking history
     const MISTAKES_COLLECTION  = "wordvault_mistakes";   // teacher's bank of marked student mistakes
     const FLASHCARDS_COLLECTION = "wordvault_flashcards"; // each user's private spaced-repetition deck
+
+    /* =======================================================================
+       VERSION — bump APP_VERSION and add a CHANGELOG entry whenever you ship a
+       change. The version shows at the bottom-left; clicking it opens this list.
+       Keep this in sync with version.json + CHANGELOG.md in the repo root (the
+       hosted version.json is what the "up to date?" check compares against).
+       ======================================================================= */
+    const APP_VERSION = "1.5.0";
+    const CHANGELOG = [
+      { v: "1.5.0", date: "2026-06-18", changes: [
+        "Version badge at the bottom-left + this version history, with an automatic “you’re up to date / update available” check when the app is hosted."
+      ] },
+      { v: "1.4.0", date: "2026-06-18", changes: [
+        "Teacher: every Ask answer now shows “📑 Rules behind this answer” — the stored notes it was grounded in.",
+        "Teacher: “✏️ Edit & refine” an answer; the AI reconciles your correction with those notes and saves it as a verified knowledge note, so the system keeps improving."
+      ] },
+      { v: "1.3.0", date: "2026-06-18", changes: [
+        "New 🗂️ Flashcards deck for every user — save a card straight from an Ask answer (AI keeps it short) or write your own.",
+        "Practise with spaced repetition (SM-2) scheduled on the Ebbinghaus forgetting curve: cards return right as you’re about to forget them."
+      ] },
+      { v: "1.2.0", date: "2026-06-18", changes: [
+        "Smarter, more reliable search: matching now tolerates word forms and misspellings (a saved “frictional force” note is found by “friction” or even “fictional force”), so stored material is no longer missed because the wording differed."
+      ] },
+      { v: "1.1.0", date: "2026-06-18", changes: [
+        "Every text field gained two helpers: ✨ Improve (AI tidies grammar & phrasing, never the meaning) and 🎤 Speak (voice input transcribed by Gemini)."
+      ] },
+      { v: "1.0.0", date: "2026-06-17", changes: [
+        "Initial Polymath WordVault: one Ask search bar, the teacher Library (syllabus + question bank), Mark, and the Mistakes bank — grounded in your material, kept word-for-word."
+      ] }
+    ];
 
     const ENTRY_TYPES = [
       "definition", "concept", "example", "formula", "fact",
@@ -4949,6 +5025,68 @@
       renderFlashcards();
     }
 
+    /* =======================================================================
+       VERSION BADGE + CHANGELOG
+       ======================================================================= */
+    function cmpVersions(a, b) {
+      const pa = String(a).split("."), pb = String(b).split(".");
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (parseInt(pa[i], 10) || 0) - (parseInt(pb[i], 10) || 0);
+        if (d) return d < 0 ? -1 : 1;
+      }
+      return 0;
+    }
+
+    function renderChangelog() {
+      const list = $("changelogList"); if (!list) return;
+      list.innerHTML = CHANGELOG.map(e => `
+        <div class="cl-entry ${e.v === APP_VERSION ? "cl-current" : ""}">
+          <div class="cl-head">
+            <span class="cl-ver">v${escapeHTML(e.v)}</span>
+            ${e.date ? `<span class="cl-date">${escapeHTML(e.date)}</span>` : ""}
+            ${e.v === APP_VERSION ? `<span class="cl-now">you’re here</span>` : ""}
+          </div>
+          <ul>${(e.changes || []).map(c => `<li>${escapeHTML(c)}</li>`).join("")}</ul>
+        </div>`).join("");
+    }
+
+    function openChangelog() { renderChangelog(); $("changelogModal").classList.add("open"); }
+    function closeChangelog() { $("changelogModal").classList.remove("open"); }
+
+    // Best-effort "are you on the latest?" check: compares the baked-in APP_VERSION
+    // against a same-origin version.json (cache-busted). Silently no-ops when opened
+    // from file://, offline, or if version.json isn't published — just shows the version.
+    async function checkForUpdate() {
+      const badge = $("versionBadge"); const status = $("changelogStatus");
+      try {
+        const res = await fetch("version.json?cb=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) throw new Error("no version.json");
+        const latest = String((await res.json()).version || "").trim();
+        if (!latest) throw new Error("no version field");
+        if (cmpVersions(APP_VERSION, latest) < 0) {
+          badge.classList.add("is-stale"); badge.classList.remove("is-latest");
+          badge.title = "Update available (v" + latest + ") — refresh the page";
+          if (status) status.innerHTML = `🔄 <strong>Update available:</strong> v${escapeHTML(latest)} is out — refresh the page to get it (you’re on v${escapeHTML(APP_VERSION)}).`;
+        } else {
+          badge.classList.add("is-latest"); badge.classList.remove("is-stale");
+          badge.title = "You’re on the latest version (v" + APP_VERSION + ")";
+          if (status) status.innerHTML = `✅ You’re on the latest version (v${escapeHTML(APP_VERSION)}).`;
+        }
+      } catch (e) {
+        if (status) status.innerHTML = `You’re running <strong>v${escapeHTML(APP_VERSION)}</strong>.`;
+      }
+    }
+
+    function initVersion() {
+      const label = $("versionLabel"); if (label) label.textContent = "v" + APP_VERSION;
+      const status = $("changelogStatus"); if (status) status.textContent = "You’re running v" + APP_VERSION + ".";
+      $("versionBadge").addEventListener("click", openChangelog);
+      $("changelogClose").addEventListener("click", closeChangelog);
+      $("changelogModal").addEventListener("click", (e) => { if (e.target === $("changelogModal")) closeChangelog(); });
+      renderChangelog();
+      checkForUpdate();
+    }
+
     /* ---------- WIRING ---------- */
     // Library (teacher): question-ingest + mark drop-zones
     setupImageDrop("qDropZone", "qFileInput", () => state.qUploads, "qThumbGrid", { allowPdf: true, statusId: "qStatus" });
@@ -5031,7 +5169,8 @@
 
     updateCounters();
     initFieldTools();   // add ✨ improve + 🎤 voice tools to every text field
-    console.log("[Polymath WordVault] ready · model:", GEMINI_MODEL, "· teaching-system extensions loaded");
+    initVersion();      // bottom-left version badge + changelog + update check
+    console.log("[Polymath WordVault] ready · model:", GEMINI_MODEL, "· version:", APP_VERSION);
   </script>
 </body>
 </html>
