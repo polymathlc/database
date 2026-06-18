@@ -2617,17 +2617,19 @@
 
     // Local lexical ranking (for exact mode, candidate narrowing, and fallback)
     function rankLocally(qstr, pool) {
-      const terms = normalizeWS(qstr).split(" ").filter(t => t.length > 1);
+      const terms = [...new Set(normalizeWS(qstr).split(" ").filter(t => t.length > 1))];
       const scored = pool.map(e => {
-        const hay = normalizeWS([e.title, e.topic, e.type, (e.keywords || []).join(" "), e.text].join(" \n "));
+        const title = normalizeWS(e.title), topic = normalizeWS(e.topic);
+        const kws = (e.keywords || []).map(k => normalizeWS(k));
+        const hay = normalizeWS([e.title, e.topic, e.type, kws.join(" "), e.text].join(" \n "));
         let score = 0;
         for (const t of terms) {
-          if (!t) continue;
           const occurrences = hay.split(t).length - 1;
-          score += occurrences;
-          if (normalizeWS(e.title).includes(t)) score += 3;
-          if (normalizeWS(e.topic).includes(t)) score += 2;
-          if ((e.keywords || []).some(k => normalizeWS(k).includes(t))) score += 2;
+          if (!occurrences) continue;
+          score += Math.min(occurrences, 3);   // cap repetition so concise entries aren't buried by wordy ones
+          if (title.includes(t)) score += 4;    // a title hit is a strong topical signal
+          if (topic.includes(t)) score += 2;
+          if (kws.some(k => k.includes(t) || t.includes(k))) score += 4;  // keyword match, either direction
           if (e.type === "definition" && (qstr.toLowerCase().includes("define") || qstr.toLowerCase().includes("definition") || qstr.toLowerCase().includes("what is"))) score += 1;
         }
         return { e, score };
@@ -3434,8 +3436,10 @@
       "not fully answer the question, THEN use the QUESTION-BANK answers to complete it.",
       "Your answer must carry the ESSENCE of the key terms from the syllabus and question bank, but be",
       "phrased in clear, natural language tailored to exactly what the student asked — do not just quote.",
-      "Give a direct 'answer' and a student-friendly 'explanation'. Stay grounded in the supplied material;",
-      "if it is insufficient, answer what you can and say so honestly in 'groundedNote'. Never invent facts."
+      "Treat the SYLLABUS PASSAGES as authoritative even when brief — a short note or a list still counts.",
+      "If a passage answers the question, USE it and do NOT claim the materials lack that information.",
+      "Give a direct 'answer' and a student-friendly 'explanation'. Only fill 'groundedNote' when NO supplied",
+      "passage is relevant to the question; otherwise leave it empty. Never invent facts."
     ].join("\n");
 
     // Rank stored questions by keyword overlap (question-bank retrieval).
@@ -3495,9 +3499,12 @@
           questionText = [typed, r.questionText].filter(Boolean).join("\n").trim() || r.questionText;
           imageDescription = r.imageDescription || "";
         }
-        // Unified retrieval: syllabus first, question bank as completion.
-        const syllabus = rankLocally(questionText, state.entries).slice(0, 6);
-        const questions = rankQuestions(questionText, 4);
+        // Unified retrieval: syllabus first, question bank as completion. Search on BOTH the
+        // question text and the image description (a graph's "rate of evaporation" axis, a
+        // figure's labels, etc.) so material is found even when the words are only in the picture.
+        const retrievalQ = [questionText, imageDescription].filter(Boolean).join(" ");
+        const syllabus = rankLocally(retrievalQ, state.entries).slice(0, 8);
+        const questions = rankQuestions(retrievalQ, 6);
         status.textContent = "Answering…";
         const prompt = [
           "STUDENT'S QUESTION:", questionText,
@@ -3537,8 +3544,10 @@
       "You are a strict but fair Singapore-syllabus marker standing in for the teacher.",
       "STEP 1 — craft the correct answer to the question, grounded in the supplied SYLLABUS PASSAGES",
       "(verbatim knowledge base) and QUESTION-BANK material. Prefer a stored answer key when one is",
-      "provided and it fits; otherwise derive the answer from the syllabus passages. Do not invent facts",
-      "the supplied material does not support — if grounding is thin, say so in the feedback.",
+      "provided and it fits; otherwise derive the answer from the syllabus passages. Treat the supplied",
+      "passages as authoritative even when brief (a short note or list still counts) — if one covers the",
+      "point, use it and do not claim the material lacks it. Do not invent facts the supplied material",
+      "does not support — only if NO passage is relevant, say grounding is thin in the feedback.",
       "STEP 2 — mark the student's answer against that correct answer: award marks per marking point, be",
       "specific about what was right and what was missing, and write encouraging feedback using the",
       "approved keywords. Put the correct answer you crafted in 'modelAnswer'.",
@@ -3605,10 +3614,10 @@
 
         // Consult the question bank + syllabus knowledge base, then craft the answer and mark.
         status.textContent = "Consulting the syllabus, question bank & mistake bank…";
-        const matched = bestQuestionMatch(questionText);
+        const matched = bestQuestionMatch([questionText, figure].filter(Boolean).join(" "));
         if (matched) figure = figure || matched.imageDescription || "";
-        const kb = rankLocally(questionText, state.entries).slice(0, 6);
-        const mistakes = rankMistakes(questionText + " " + studentAnswer, 4);
+        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 8);
+        const mistakes = rankMistakes([questionText, figure, studentAnswer].filter(Boolean).join(" "), 4);
 
         status.textContent = "Crafting the answer & marking…";
         const prompt = [
@@ -3732,8 +3741,8 @@
         if (!questionText) throw new Error("Add the question first (paste it or upload an image).");
         if (!studentAnswer) throw new Error("Add the student's answer first (paste it or upload an image).");
         status.textContent = "Consulting the syllabus & question bank…";
-        const matched = bestQuestionMatch(questionText);
-        const kb = rankLocally(questionText, state.entries).slice(0, 6);
+        const matched = bestQuestionMatch([questionText, figure].filter(Boolean).join(" "));
+        const kb = rankLocally([questionText, figure].filter(Boolean).join(" "), state.entries).slice(0, 8);
         const prompt = [
           "QUESTION:", questionText, figure ? ("FIGURE: " + figure) : "",
           "", "REFERENCE MATERIAL (syllabus + question bank):", buildMarkContext(matched, kb),
