@@ -28,14 +28,17 @@ question bank are managed together by the teacher in one **Library**.
 | Edit any stored answer | Each question in the Library has an ✏️ button to edit its answer key and approved keywords inline. |
 | Ask → **answer in the essence of the keywords**, tailored | Ask consults the syllabus then the question bank; the reply carries the essence of both sources' key terms but is phrased to directly answer the student. |
 | **Mark** student answers + give feedback | **✅ Mark** (teacher) — paste/upload the question and the student's answer; the AI crafts the correct answer from the syllabus + question bank, then scores it with feedback. |
+| **Remember** wrong answers so marking stays consistent | **🚩 Mistakes** (teacher only) — upload a student's wrong answer, comment on the mistake, and save it. Marking then flags the same mistake and reuses your comment on similar answers. |
 
 ---
 
 ## Roles
 
 Sign‑in is with Google. Your account (`ADMIN_EMAIL` in `index.html`) is the **Teacher** and sees
-the full nav: **Ask**, **Library** (load syllabus + OCR/edit the question bank), and **Mark**.
-Everyone else is a **Student** and sees **only the Ask search bar** — nothing else.
+the full nav: **Ask**, **Library** (load syllabus + OCR/edit the question bank), **Mark**, and
+**Mistakes** (your private bank of marked student answers). Everyone else is a **Student** and
+sees **only the Ask search bar** — nothing else. The Mistakes bank is never readable by students;
+it holds individual students' wrong answers and is loaded only for the teacher.
 
 ---
 
@@ -49,6 +52,10 @@ All documents carry an `owner` (the writer's `uid`) and `createdAtMs`.
   `questionText, imageDescription, subject, topic, type, level, keywords[],`
   `answerKey, approvedKeywords[], markingPoints[], thumb, sourceId`.
   The `answerKey` and `approvedKeywords` can be edited in place from the Question Bank.
+- `wordvault_mistakes` — the teacher's bank of marked student answers (teacher‑only):
+  `questionText, imageDescription, studentAnswer, teacherComment, correctAnswer,`
+  `mistakeTags[], subject, topic, keywords[], questionId, thumb`.
+  Retrieved at marking time so the AI flags the same mistakes and reuses the teacher's comments.
 - `wordvault_attempts` — a log of Ask/Mark interactions (non‑fatal if it fails).
 
 Question thumbnails are downscaled JPEGs stored inline so each doc stays well under
@@ -86,17 +93,31 @@ service cloud.firestore {
 To let students read the teacher's bank/knowledge base:
 
 1. Put the **teacher's `uid`** in `SHARED_LIBRARY_UID` (top of the `<script>` in `index.html`).
-2. Allow signed‑in students to *read* (not write) the teacher's docs:
+2. Allow signed‑in students to *read* (not write) only the teacher's **library** collections —
+   keep the **mistakes** bank (and attempts) owner‑only so one student's wrong answers are never
+   exposed to others:
 
 ```
-match /{col}/{doc} {
-  allow read: if request.auth != null
-    && (resource.data.owner == request.auth.uid
-        || resource.data.owner == "TEACHER_UID_HERE");
-  allow write: if request.auth != null
-    && resource.data.owner == request.auth.uid;
-  allow create: if request.auth != null
-    && request.resource.data.owner == request.auth.uid;
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // Library collections students may read from the teacher's account
+    match /{col}/{doc} {
+      allow read: if request.auth != null
+        && col in ['wordvault_sources','wordvault_entries','wordvault_questions']
+        && (resource.data.owner == request.auth.uid
+            || resource.data.owner == "TEACHER_UID_HERE");
+      allow write, create: if request.auth != null
+        && request.resource.data.owner == request.auth.uid;
+    }
+    // Everything else (incl. wordvault_mistakes) stays strictly owner-only
+    match /{col}/{doc} {
+      allow read, write: if request.auth != null
+        && resource.data.owner == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.owner == request.auth.uid;
+    }
+  }
 }
 ```
 
@@ -113,6 +134,10 @@ Students still write their own `wordvault_attempts`; only the teacher writes the
    it. Review, then save. Edit any answer later with the ✏️ button.
 3. Students just **Ask**: type a question (or upload an image) in the single search bar and
    press Enter. Teachers can also **Mark** a student's answer.
+4. Teacher → **Mistakes**: when a student gets something wrong, upload/paste the question and
+   the wrong answer, write your comment (optionally let *“✨ Draft what's wrong”* pre‑fill it for
+   you to edit), and **Save**. From then on, marking a similar answer flags the same mistake and
+   reuses your comment. You can also hit *“🚩 Save as a marked mistake”* straight from a Mark result.
 
 ---
 

@@ -916,6 +916,31 @@
     .kw-approved-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .badge.kw-approved { background: var(--accent-bg); color: var(--accent-dark); border: 1px solid var(--accent-light); font-weight: 600; }
 
+    /* Mistake-bank blocks: the student's wrong answer (red) and the teacher's comment (amber) */
+    .wrong-block {
+      font-size: var(--font-size-base);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: var(--subj-assessment-bg);
+      border: 1px solid #FFCDD2;
+      border-left: 3px solid var(--subj-assessment);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+    }
+    .comment-block {
+      font-size: var(--font-size-base);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: var(--subj-general-bg);
+      border: 1px solid #FFE0B2;
+      border-left: 3px solid var(--subj-general);
+      border-radius: var(--radius-sm);
+      padding: var(--space-md);
+    }
+    .badge.kw-tag { background: var(--subj-general-bg); color: #B26A00; border: 1px solid #FFE0B2; font-weight: 600; }
+
     /* Editable preview fields */
     .edit-field {
       width: 100%;
@@ -1070,6 +1095,7 @@
         <button class="mode-tab active" data-mode="ask"><span class="mt-emoji">🔎</span> Ask</button>
         <button class="mode-tab teacher-only" data-mode="kb"><span class="mt-emoji">📚</span> Library</button>
         <button class="mode-tab teacher-only" data-mode="mark"><span class="mt-emoji">✅</span> Mark</button>
+        <button class="mode-tab teacher-only" data-mode="mistakes"><span class="mt-emoji">🚩</span> Mistakes</button>
       </nav>
 
       <!-- ===================== MODE: LIBRARY (syllabus + question bank, teacher) ===================== -->
@@ -1372,6 +1398,94 @@
         </section>
       </div><!-- /mode-mark -->
 
+      <!-- ===================== MODE: MISTAKES (teacher mistake bank) ===================== -->
+      <div class="mode-panel" id="mode-mistakes">
+        <section class="section animate-in">
+          <h2 class="section-heading"><span class="emoji">🚩</span> Record a student mistake</h2>
+          <p class="section-desc">
+            Upload or paste the <strong>question</strong> and the <strong>student's wrong answer</strong>, then write
+            your <strong>comment</strong> on the mistake. The bank <strong>remembers</strong> it, so when you
+            <strong>Mark</strong> a similar answer later the marker flags the same mistake and applies your guidance.
+            <em>Only you (the teacher) can see and use this bank.</em>
+          </p>
+
+          <div class="field-row" style="margin-top:var(--space-md);">
+            <div class="field" style="flex:1 1 100%;">
+              <label>Question (paste below, or upload an image)</label>
+              <div class="drop-zone" id="mkQDropZone" tabindex="0" style="padding:var(--space-md);">
+                <div class="dz-icon" style="font-size:1.6rem;">❓</div>
+                <div class="dz-sub">Drop / paste / click to add a photo of the question.</div>
+                <input type="file" id="mkQFileInput" accept="image/*" capture="environment" multiple class="hidden" />
+              </div>
+              <div class="thumb-grid" id="mkQThumbGrid"></div>
+              <textarea class="input-area" id="mkQText" style="min-height:80px;margin-top:var(--space-sm);" placeholder="Paste the question here (or upload a photo above)"></textarea>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field" style="flex:1 1 100%;">
+              <label>Student's wrong answer (paste below, or upload an image)</label>
+              <div class="drop-zone" id="mkADropZone" tabindex="0" style="padding:var(--space-md);">
+                <div class="dz-icon" style="font-size:1.6rem;">✍️</div>
+                <div class="dz-sub">Drop / paste / click to add a photo of the student's answer.</div>
+                <input type="file" id="mkAFileInput" accept="image/*" capture="environment" multiple class="hidden" />
+              </div>
+              <div class="thumb-grid" id="mkAThumbGrid"></div>
+              <textarea class="input-area" id="mkAText" style="min-height:100px;margin-top:var(--space-sm);" placeholder="Paste the student's (wrong) answer here (or upload a photo above)"></textarea>
+            </div>
+          </div>
+
+          <div class="action-row" style="margin-bottom:var(--space-sm);">
+            <button class="btn btn-ghost" id="mkDraftBtn" title="Let the AI suggest what's wrong — you can edit before saving">
+              <span class="spinner"></span><span class="btn-label">✨ Draft what's wrong (AI)</span>
+            </button>
+            <span class="helper-line" id="mkDraftStatus"></span>
+          </div>
+
+          <div class="field-row">
+            <div class="field" style="flex:1 1 100%;">
+              <label>Your comment on the mistake <span style="color:var(--subj-assessment);">*</span></label>
+              <textarea class="input-area" id="mkComment" style="min-height:90px;" placeholder="What did the student get wrong, and how should it be corrected? (your words — this is what the marker will reuse)"></textarea>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field" style="flex:1 1 100%;">
+              <label>Correct answer (optional)</label>
+              <textarea class="input-area" id="mkCorrect" style="min-height:70px;" placeholder="The answer the student should have given (optional)"></textarea>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field" style="flex:1 1 100%;">
+              <label>Mistake tags (comma-separated, optional)</label>
+              <input type="text" class="text-input" id="mkTags" style="width:100%;" placeholder="e.g. unit error, forgot to convert, misread question" />
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="btn btn-primary" id="mkSaveBtn">
+              <span class="spinner"></span><span class="btn-label">🚩 Save mistake</span>
+            </button>
+            <button class="btn btn-ghost" id="mkResetBtn">Reset</button>
+            <span class="helper-line" id="mkStatus"></span>
+          </div>
+        </section>
+
+        <!-- ---------- MISTAKE BANK LIBRARY ---------- -->
+        <section class="section animate-in">
+          <h2 class="section-heading"><span class="emoji">🗂️</span> Mistake bank</h2>
+          <p class="section-desc">Every mistake you've recorded, with the student's answer, your comment and the correct answer. These guide future marking.</p>
+          <div class="stats-grid" id="mkStatsGrid"></div>
+          <div class="filter-row" style="margin-bottom:var(--space-sm);">
+            <select class="select-input" id="mkFilterSubject"><option value="">All subjects</option></select>
+            <select class="select-input" id="mkFilterTopic"><option value="">All topics</option></select>
+            <input type="text" class="text-input" id="mkQuickFilter" placeholder="Quick filter…" style="flex:1 1 160px;" />
+          </div>
+          <div id="mkBankOutput"></div>
+        </section>
+      </div><!-- /mode-mistakes -->
+
     </div><!-- /appBody -->
   </main>
 
@@ -1439,6 +1553,7 @@
     const ENTRIES_COLLECTION = "wordvault_entries";
     const QUESTIONS_COLLECTION = "wordvault_questions";
     const ATTEMPTS_COLLECTION  = "wordvault_attempts";   // marking history
+    const MISTAKES_COLLECTION  = "wordvault_mistakes";   // teacher's bank of marked student mistakes
 
     const ENTRY_TYPES = [
       "definition", "concept", "example", "formula", "fact",
@@ -1626,7 +1741,21 @@
         pointsMet: Schema.array({ items: Schema.string(), description: "Marking points the student satisfied." }),
         pointsMissed: Schema.array({ items: Schema.string(), description: "Marking points the student missed or got wrong." }),
         feedback: Schema.string({ description: "Constructive feedback in the teacher's voice, using the approved keywords, telling the student exactly how to improve." }),
-        modelAnswer: Schema.string({ description: "The correct answer the student should have given." })
+        modelAnswer: Schema.string({ description: "The correct answer the student should have given." }),
+        matchedMistakes: Schema.array({ items: Schema.string(), description: "If the student's answer repeats any of the teacher's KNOWN RECORDED MISTAKES supplied in the reference material, restate each matching mistake here in the teacher's words. Empty array if none match." })
+      }
+    });
+
+    // Draft helper for the teacher's Mistakes tab — the AI proposes what's wrong; the
+    // teacher edits before saving. (The app never stores AI text without teacher review.)
+    const mistakeDraftSchema = Schema.object({
+      properties: {
+        whatsWrong: Schema.string({ description: "A concise, specific explanation of what is wrong with the student's answer compared to the correct answer — the kind of comment a teacher would write in the margin. The teacher will edit this." }),
+        correctAnswer: Schema.string({ description: "The correct answer, grounded in the supplied syllabus + question bank. Empty string if grounding is too thin." }),
+        mistakeTags: Schema.array({ items: Schema.string(), description: "1-4 short labels for the TYPE of mistake, e.g. 'unit error', 'forgot to convert', 'misread question', 'incomplete working'." }),
+        keywords: Schema.array({ items: Schema.string(), description: "Essential terms/values for retrieving this mistake later." }),
+        subject: Schema.string({ description: "One of: Science, Math, Geometry, General, Assessment." }),
+        topic: Schema.string({ description: "A concise topic name, e.g. Forces, Fractions, Photosynthesis." })
       }
     });
 
@@ -1639,6 +1768,7 @@
       entries: [],          // {id, text, title, subject, topic, type, keywords[], sourceId, verified, createdAtMs}
       sources: [],          // {id, rawText, fileName, createdAtMs, entryCount}
       questions: [],        // {id, questionText, imageDescription, subject, topic, type, level, keywords[], answerKey, approvedKeywords[], markingPoints[], thumb, sourceId, createdAtMs}
+      mistakes: [],         // {id, questionText, imageDescription, studentAnswer, teacherComment, correctAnswer, mistakeTags[], subject, topic, keywords[], questionId, thumb, createdAtMs}
       previewEntries: [],   // staged, pre-save (knowledge base)
       searchMode: "ai",
       lastSearchResults: null,
@@ -1647,7 +1777,9 @@
       qPreview: [],         // staged questions pre-save
       askUploads: [],
       markQUploads: [],
-      markAUploads: []
+      markAUploads: [],
+      mkQUploads: [],       // Mistakes tab — question image(s)
+      mkAUploads: []        // Mistakes tab — student's (wrong) answer image(s)
     };
 
     /* =======================================================================
@@ -1912,7 +2044,7 @@
         $("headerUser").classList.add("hidden");
         $("signinGate").classList.remove("hidden");
         $("appBody").classList.add("hidden");
-        state.entries = []; state.sources = []; state.questions = [];
+        state.entries = []; state.sources = []; state.questions = []; state.mistakes = [];
       }
     });
 
@@ -1933,7 +2065,7 @@
        ======================================================================= */
     async function loadAll() {
       try {
-        await Promise.all([loadSources(), loadEntries(), loadQuestions()]);
+        await Promise.all([loadSources(), loadEntries(), loadQuestions(), loadMistakes()]);
         renderEverything();
       } catch (err) {
         console.error(err);
@@ -2082,6 +2214,56 @@
         const ref = doc(collection(db, ATTEMPTS_COLLECTION));
         await setDoc(ref, { owner: state.user.uid, createdAtMs: Date.now(), ...data });
       } catch (err) { console.warn("logAttempt failed (non-fatal):", err); }
+    }
+
+    /* ---- Mistakes (teacher-only bank of marked student answers) ---- */
+    // Only the teacher reads/writes mistakes: they hold individual students' wrong
+    // answers and feed the (teacher-only) Mark flow, so students never load them.
+    async function loadMistakes() {
+      if (!state.isTeacher) { state.mistakes = []; return; }
+      try {
+        const q = query(collection(db, MISTAKES_COLLECTION), where("owner", "==", state.user.uid));
+        const snap = await getDocs(q);
+        state.mistakes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      } catch (err) {
+        console.warn("loadMistakes failed (continuing):", err);
+        state.mistakes = [];
+      }
+    }
+
+    async function saveMistake(m) {
+      const ref = doc(collection(db, MISTAKES_COLLECTION));
+      const data = {
+        owner: state.user.uid,
+        questionText: m.questionText || "",
+        imageDescription: m.imageDescription || "",
+        studentAnswer: m.studentAnswer || "",
+        teacherComment: m.teacherComment || "",
+        correctAnswer: m.correctAnswer || "",
+        mistakeTags: Array.isArray(m.mistakeTags) ? m.mistakeTags.filter(Boolean).slice(0, 8) : [],
+        subject: normalizeSubject(m.subject),
+        topic: (m.topic && m.topic.trim()) || "Uncategorised",
+        keywords: Array.isArray(m.keywords) ? m.keywords.filter(Boolean).slice(0, 12) : [],
+        questionId: m.questionId || null,
+        thumb: m.thumb || "",
+        createdAtMs: Date.now()
+      };
+      await setDoc(ref, data);
+      const saved = { id: ref.id, ...data };
+      state.mistakes.unshift(saved);
+      return saved;
+    }
+
+    async function updateMistake(id, patch) {
+      await setDoc(doc(db, MISTAKES_COLLECTION, id), patch, { merge: true });
+      const m = state.mistakes.find(x => x.id === id);
+      if (m) Object.assign(m, patch);
+    }
+
+    async function deleteMistakeById(id) {
+      await deleteDoc(doc(db, MISTAKES_COLLECTION, id));
+      state.mistakes = state.mistakes.filter(m => m.id !== id);
     }
 
     function normalizeQType(t) {
@@ -2688,6 +2870,8 @@
       renderSources();
       renderQuestionBank();
       rebuildQuestionSelectors();
+      renderMistakeBank();
+      rebuildMistakeSelectors();
     }
 
     /* =======================================================================
@@ -3325,11 +3509,15 @@
       "the supplied material does not support — if grounding is thin, say so in the feedback.",
       "STEP 2 — mark the student's answer against that correct answer: award marks per marking point, be",
       "specific about what was right and what was missing, and write encouraging feedback using the",
-      "approved keywords. Put the correct answer you crafted in 'modelAnswer'."
+      "approved keywords. Put the correct answer you crafted in 'modelAnswer'.",
+      "KNOWN MISTAKES — the teacher has recorded comments on past student mistakes for similar questions.",
+      "If the student's answer repeats any of these, mark it the SAME way the teacher would: apply the",
+      "teacher's comment and penalty consistently, weave that guidance into your feedback, and list each",
+      "matching recorded mistake in 'matchedMistakes'. Treat the teacher's recorded comments as authoritative."
     ].join("\n");
 
     // Build the grounding context for marking: the best question-bank match + relevant syllabus passages.
-    function buildMarkContext(matched, kb) {
+    function buildMarkContext(matched, kb, mistakes = []) {
       const lines = [];
       if (matched) {
         lines.push("MATCHED QUESTION-BANK ENTRY:");
@@ -3344,6 +3532,16 @@
         kb.forEach(e => lines.push("[" + e.subject + " › " + e.topic + "] " + e.text));
       } else {
         lines.push("", "(No syllabus passages stored yet — rely on the question-bank material and standard syllabus knowledge, and note if grounding is thin.)");
+      }
+      if (mistakes.length) {
+        lines.push("", "KNOWN MISTAKES the teacher has recorded for similar questions (apply the same judgement & comments):");
+        mistakes.forEach((m, i) => {
+          lines.push("MISTAKE " + (i + 1) + ":");
+          if (m.studentAnswer) lines.push("  Previous wrong answer: " + m.studentAnswer);
+          if (m.teacherComment) lines.push("  Teacher's comment: " + m.teacherComment);
+          if (m.correctAnswer) lines.push("  Correct answer: " + m.correctAnswer);
+          if ((m.mistakeTags || []).length) lines.push("  Tags: " + m.mistakeTags.join(", "));
+        });
       }
       return lines.join("\n");
     }
@@ -3374,18 +3572,21 @@
         if (!studentAnswer) throw new Error("Add the student's answer (paste it or upload an image).");
 
         // Consult the question bank + syllabus knowledge base, then craft the answer and mark.
-        status.textContent = "Consulting the syllabus & question bank…";
+        status.textContent = "Consulting the syllabus, question bank & mistake bank…";
         const matched = bestQuestionMatch(questionText);
         if (matched) figure = figure || matched.imageDescription || "";
         const kb = rankLocally(questionText, state.entries).slice(0, 6);
+        const mistakes = rankMistakes(questionText + " " + studentAnswer, 4);
 
         status.textContent = "Crafting the answer & marking…";
         const prompt = [
           "QUESTION:", questionText, figure ? ("FIGURE: " + figure) : "",
-          "", "REFERENCE MATERIAL (syllabus + question bank):", buildMarkContext(matched, kb),
+          "", "REFERENCE MATERIAL (syllabus + question bank + known mistakes):", buildMarkContext(matched, kb, mistakes),
           "", "STUDENT'S ANSWER:", studentAnswer
         ].filter(Boolean).join("\n");
         const res = await askGeminiJSON(prompt, markSchema, { system: MARK_SYSTEM, temperature: 0.1 });
+        // Remember this marking so the teacher can save it to the mistake bank in one click.
+        state._lastMark = { questionText, imageDescription: figure, studentAnswer, correctAnswer: res.modelAnswer || "", questionId: matched ? matched.id : "", subject: matched ? matched.subject : "", topic: matched ? matched.topic : "" };
         renderMark(res);
         logAttempt({ kind: "mark", questionId: matched ? matched.id : "", questionText, studentAnswer, score: res.score, verdict: res.verdict });
       } catch (err) {
@@ -3402,6 +3603,8 @@
       const ringColor = score >= 80 ? "#2E7D32" : score >= 40 ? "#B26A00" : "#C62828";
       const met = (res.pointsMet || []).map(p => `<li><span class="pmark">✓</span><span>${escapeHTML(p)}</span></li>`).join("");
       const missed = (res.pointsMissed || []).map(p => `<li><span class="pmark">✗</span><span>${escapeHTML(p)}</span></li>`).join("");
+      const matchedMistakes = (res.matchedMistakes || []).filter(Boolean);
+      const knownMistakes = matchedMistakes.map(p => `<li><span class="pmark">⚑</span><span>${escapeHTML(p)}</span></li>`).join("");
       const marks = res.marksTotal ? (res.marksAwarded + "/" + res.marksTotal + " marks") : "";
       const panel = el("div", "result-panel");
       panel.appendChild(el("div", "result-head", `<span>✅ Marking &amp; feedback</span>`));
@@ -3416,11 +3619,18 @@
         </div>
         ${met ? `<div class="block-label">✓ What earned marks</div><ul class="point-list met">${met}</ul>` : ""}
         ${missed ? `<div class="block-label">✗ What was missing or wrong</div><ul class="point-list missed">${missed}</ul>` : ""}
+        ${knownMistakes ? `<div class="block-label">⚑ Known mistakes this matches (from your mistake bank)</div><ul class="point-list missed">${knownMistakes}</ul>` : ""}
         <div class="block-label">🗣️ Feedback</div>
         <p class="approach-text">${escapeHTML(res.feedback || "")}</p>
         ${res.modelAnswer ? `<div class="block-label">🔑 Correct answer (crafted from your syllabus &amp; question bank)</div><div class="answer-block">${escapeHTML(res.modelAnswer)}</div>` : ""}
+        ${state.isTeacher ? `<div class="action-row" style="margin-top:var(--space-md);"><button class="btn btn-ghost btn-sm" id="markSaveMistakeBtn">🚩 Save as a marked mistake</button></div>` : ""}
       `;
       panel.appendChild(body); out.appendChild(panel);
+      const saveMistakeBtn = body.querySelector("#markSaveMistakeBtn");
+      if (saveMistakeBtn) saveMistakeBtn.addEventListener("click", () => {
+        prefillMistakeFromMark(res);
+        toast("Sent to the Mistakes tab — add your comment and save.", "ok");
+      });
     }
 
     function resetMark() {
@@ -3431,11 +3641,289 @@
       $("markOutput").innerHTML = ""; $("markStatus").textContent = "";
     }
 
+    /* =======================================================================
+       MISTAKES — the teacher's bank of marked student answers. The teacher
+       uploads a wrong answer and comments on it; the bank remembers it and
+       feeds the Mark flow so similar answers are marked the same way later.
+       ======================================================================= */
+    const MISTAKE_DRAFT_SYSTEM = [
+      "You help a Singapore-syllabus teacher record WHY a student's answer is wrong.",
+      "Using the QUESTION, the STUDENT'S ANSWER and the REFERENCE MATERIAL (syllabus + question bank),",
+      "first work out the correct answer (grounded in the supplied material — do not invent facts), then",
+      "explain specifically what is wrong with the student's answer in 'whatsWrong', as a concise comment a",
+      "teacher would write in the margin. Add short 'mistakeTags' for the type of error, 'keywords' for",
+      "retrieval, and the 'subject' and 'topic'. The teacher will review and edit everything before saving."
+    ].join("\n");
+
+    // Rank stored mistakes by keyword overlap with the question + student's answer.
+    function rankMistakes(text, n = 4) {
+      if (!state.mistakes.length || !text) return [];
+      const terms = new Set(normalizeWS(text).split(" ").filter(t => t.length > 2));
+      if (!terms.size) return [];
+      return state.mistakes.map(m => {
+        const hay = new Set(normalizeWS([m.questionText, m.topic, m.studentAnswer, m.teacherComment, (m.keywords || []).join(" "), (m.mistakeTags || []).join(" ")].join(" ")).split(" ").filter(t => t.length > 2));
+        let s = 0; terms.forEach(t => { if (hay.has(t)) s++; });
+        return { m, score: s };
+      }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, n).map(x => x.m);
+    }
+
+    // Read the question + student answer from the Mistakes form. Any uploaded images are
+    // OCR'd ONCE, transcribed into the textareas, then cleared — so calling this again
+    // (e.g. draft then save) reads only the textareas and never double-counts the OCR.
+    async function readMistakeInputs(status) {
+      if (state.mkQUploads.length) {
+        if (status) status.textContent = "Reading the question…";
+        const r = await ocrSingleQuestion(state.mkQUploads);
+        $("mkQText").value = [$("mkQText").value.trim(), r.questionText].filter(Boolean).join("\n").trim();
+        if (r.imageDescription) state._mkFigure = r.imageDescription;
+        state.mkQUploads = [];
+        renderThumbGrid("mkQThumbGrid", state.mkQUploads);
+      }
+      if (state.mkAUploads.length) {
+        if (status) status.textContent = "Reading the student's answer…";
+        if (!state._mkAnswerThumb && state.mkAUploads[0]) state._mkAnswerThumb = state.mkAUploads[0].thumb || "";
+        const ra = await ocrFreeText(state.mkAUploads);
+        $("mkAText").value = [$("mkAText").value.trim(), ra].filter(Boolean).join("\n").trim();
+        state.mkAUploads = [];
+        renderThumbGrid("mkAThumbGrid", state.mkAUploads);
+      }
+      return { questionText: $("mkQText").value.trim(), studentAnswer: $("mkAText").value.trim(), figure: state._mkFigure || "" };
+    }
+
+    // Optional helper — the AI proposes what's wrong; we only pre-fill empty fields so
+    // the teacher's own words always win. Nothing is saved here.
+    async function draftMistake() {
+      const btn = $("mkDraftBtn"); setBtnLoading(btn, true);
+      const status = $("mkDraftStatus");
+      try {
+        const { questionText, studentAnswer, figure } = await readMistakeInputs(status);
+        if (!questionText) throw new Error("Add the question first (paste it or upload an image).");
+        if (!studentAnswer) throw new Error("Add the student's answer first (paste it or upload an image).");
+        status.textContent = "Consulting the syllabus & question bank…";
+        const matched = bestQuestionMatch(questionText);
+        const kb = rankLocally(questionText, state.entries).slice(0, 6);
+        const prompt = [
+          "QUESTION:", questionText, figure ? ("FIGURE: " + figure) : "",
+          "", "REFERENCE MATERIAL (syllabus + question bank):", buildMarkContext(matched, kb),
+          "", "STUDENT'S ANSWER:", studentAnswer
+        ].filter(Boolean).join("\n");
+        status.textContent = "Drafting…";
+        const res = await askGeminiJSON(prompt, mistakeDraftSchema, { system: MISTAKE_DRAFT_SYSTEM, temperature: 0.2 });
+        if (res.whatsWrong && !$("mkComment").value.trim()) $("mkComment").value = res.whatsWrong;
+        if (res.correctAnswer && !$("mkCorrect").value.trim()) $("mkCorrect").value = res.correctAnswer;
+        if ((res.mistakeTags || []).length && !$("mkTags").value.trim()) $("mkTags").value = res.mistakeTags.join(", ");
+        state._draftMeta = { subject: res.subject || (matched ? matched.subject : ""), topic: res.topic || (matched ? matched.topic : ""), keywords: res.keywords || [], questionId: matched ? matched.id : "", imageDescription: figure };
+        toast("Draft ready — review and edit, then save.", "ok");
+      } catch (err) {
+        console.error(err); toast(err.message || ("Draft failed: " + (err.code || err.message)), "err", 5000);
+      } finally { setBtnLoading(btn, false); status.textContent = ""; }
+    }
+
+    async function saveMistakeFromForm() {
+      const btn = $("mkSaveBtn"); setBtnLoading(btn, true);
+      const status = $("mkStatus");
+      try {
+        const { questionText, studentAnswer, figure } = await readMistakeInputs(status);
+        const teacherComment = $("mkComment").value.trim();
+        if (!questionText) throw new Error("Add the question (paste it or upload an image).");
+        if (!studentAnswer) throw new Error("Add the student's answer (paste it or upload an image).");
+        if (!teacherComment) throw new Error("Add your comment on the mistake.");
+        const meta = state._draftMeta || {};
+        const fallback = bestQuestionMatch(questionText) || {};
+        const mistakeTags = $("mkTags").value.split(",").map(s => s.trim()).filter(Boolean).slice(0, 8);
+        const thumb = state._mkAnswerThumb || "";
+        status.textContent = "Saving…";
+        await saveMistake({
+          questionText,
+          imageDescription: figure || meta.imageDescription || "",
+          studentAnswer,
+          teacherComment,
+          correctAnswer: $("mkCorrect").value.trim(),
+          mistakeTags,
+          subject: meta.subject || fallback.subject || "General",
+          topic: meta.topic || fallback.topic || "Uncategorised",
+          keywords: meta.keywords || [],
+          questionId: meta.questionId || "",
+          thumb
+        });
+        toast("Mistake saved — the marker will use it from now on.", "ok");
+        resetMistakeForm();
+        renderMistakeBank();
+        rebuildMistakeSelectors();
+      } catch (err) {
+        console.error(err); toast(err.message || ("Save failed: " + (err.code || err.message)), "err", 5000);
+      } finally { setBtnLoading(btn, false); status.textContent = ""; }
+    }
+
+    function resetMistakeForm() {
+      state.mkQUploads = []; state.mkAUploads = [];
+      state._draftMeta = null; state._mkFigure = ""; state._mkAnswerThumb = "";
+      renderThumbGrid("mkQThumbGrid", state.mkQUploads);
+      renderThumbGrid("mkAThumbGrid", state.mkAUploads);
+      ["mkQText", "mkAText", "mkComment", "mkCorrect", "mkTags"].forEach(id => { if ($(id)) $(id).value = ""; });
+      if ($("mkStatus")) $("mkStatus").textContent = "";
+      if ($("mkDraftStatus")) $("mkDraftStatus").textContent = "";
+    }
+
+    // Jump from a Mark result straight into the Mistakes tab with fields pre-filled.
+    function prefillMistakeFromMark(res) {
+      const m = state._lastMark || {};
+      resetMistakeForm();
+      $("mkQText").value = m.questionText || "";
+      $("mkAText").value = m.studentAnswer || "";
+      $("mkCorrect").value = m.correctAnswer || res.modelAnswer || "";
+      const flagged = [...(res.matchedMistakes || []), ...(res.pointsMissed || [])].filter(Boolean);
+      $("mkComment").value = flagged.length ? flagged.join("; ") : (res.feedback || "");
+      state._mkFigure = m.imageDescription || "";
+      state._draftMeta = { subject: m.subject || "", topic: m.topic || "", keywords: [], questionId: m.questionId || "", imageDescription: m.imageDescription || "" };
+      switchMode("mistakes");
+      $("mkComment").focus();
+    }
+
+    /* ---------- MISTAKE BANK LIBRARY ---------- */
+    function renderMistakeBank() {
+      const grid = $("mkStatsGrid");
+      if (grid) {
+        const total = state.mistakes.length;
+        const subjects = new Set(state.mistakes.map(m => m.subject));
+        const topics = new Set(state.mistakes.map(m => m.subject + "›" + m.topic));
+        const tags = new Set();
+        state.mistakes.forEach(m => (m.mistakeTags || []).forEach(t => tags.add(t.toLowerCase())));
+        grid.innerHTML = [["Mistakes", total], ["Subjects", subjects.size], ["Topics", topics.size], ["Tags", tags.size]]
+          .map(([l, n]) => `<div class="stat-card"><div class="stat-num">${n}</div><div class="stat-label">${l}</div></div>`).join("");
+      }
+      const out = $("mkBankOutput");
+      if (!out) return;
+      if (!state.mistakes.length) { out.innerHTML = emptyState("🗂️", "No mistakes recorded yet", "Add a question and a student's wrong answer above, comment on it, then save."); return; }
+
+      const subjF = $("mkFilterSubject").value, topicF = $("mkFilterTopic").value;
+      const quick = normalizeWS($("mkQuickFilter").value);
+      const list = state.mistakes.filter(m =>
+        (!subjF || m.subject === subjF) &&
+        (!topicF || m.topic === topicF) &&
+        (!quick || normalizeWS([m.questionText, m.topic, m.studentAnswer, m.teacherComment, m.correctAnswer, (m.keywords || []).join(" "), (m.mistakeTags || []).join(" ")].join(" ")).includes(quick)));
+
+      if (!list.length) { out.innerHTML = emptyState("🔦", "No mistakes match", "Loosen the filters."); return; }
+
+      const groups = {};
+      for (const m of list) {
+        const sk = m.subject || "General", tk = m.topic || "Uncategorised";
+        groups[sk] = groups[sk] || {};
+        groups[sk][tk] = groups[sk][tk] || [];
+        groups[sk][tk].push(m);
+      }
+      out.innerHTML = "";
+      Object.keys(groups).sort().forEach(subject => {
+        Object.keys(groups[subject]).sort().forEach(topic => {
+          const items = groups[subject][topic];
+          const grp = el("div", "topic-group");
+          grp.appendChild(el("div", "topic-group-head",
+            `<span class="badge ${subjClass(subject)}">${escapeHTML(subject)}</span><span>${escapeHTML(topic)}</span><span class="count">${items.length} ${items.length === 1 ? "mistake" : "mistakes"}</span>`));
+          const wrap = el("div", "entries-list");
+          items.forEach(m => wrap.appendChild(renderMistakeCard(m)));
+          grp.appendChild(wrap);
+          out.appendChild(grp);
+        });
+      });
+    }
+
+    function renderMistakeCard(m) {
+      const card = el("div", "q-card");
+      card.innerHTML = `
+        <div class="entry-head">
+          <div class="entry-title">${escapeHTML(m.topic)}</div>
+          <div class="entry-actions">
+            <button class="mini-btn" title="Edit mistake" data-act="edit">✏️</button>
+            <button class="mini-btn" title="Delete mistake" data-act="del">🗑️</button>
+          </div>
+        </div>
+        <div class="badge-row">
+          <span class="badge ${subjClass(m.subject)}">${escapeHTML(m.subject)}</span>
+          ${(m.mistakeTags || []).map(t => `<span class="badge kw-tag">${escapeHTML(t)}</span>`).join("")}
+        </div>
+        <div class="q-body">
+          ${m.thumb ? `<div class="thumb-sm"><img src="${m.thumb}" alt="" /></div>` : ""}
+          <div class="q-main">
+            <div class="q-text">${escapeHTML(m.questionText)}</div>
+            ${m.imageDescription ? `<div class="block-label">🖼️ Picture description</div><div class="img-desc">${escapeHTML(m.imageDescription)}</div>` : ""}
+            <div class="mk-area"></div>
+          </div>
+        </div>
+      `;
+      const area = card.querySelector(".mk-area");
+      renderMistakeView(area, m, false);
+      card.querySelector('[data-act="del"]').addEventListener("click", async () => {
+        const ok = await confirmDialog("Delete this mistake?", "It will be removed from the bank and no longer guide marking.", "Delete");
+        if (!ok) return;
+        try { await deleteMistakeById(m.id); renderMistakeBank(); rebuildMistakeSelectors(); toast("Mistake deleted.", "ok"); }
+        catch (err) { toast("Delete failed: " + (err.code || err.message), "err"); }
+      });
+      card.querySelector('[data-act="edit"]').addEventListener("click", () => renderMistakeView(area, m, true));
+      return card;
+    }
+
+    // Shows the wrong answer + teacher's comment + correct answer; teachers can edit inline.
+    function renderMistakeView(area, m, editing) {
+      if (editing) {
+        area.innerHTML = `
+          <div class="block-label">✍️ Student's wrong answer</div>
+          <textarea class="edit-field mk-edit-ans" style="min-height:70px;">${escapeHTML(m.studentAnswer || "")}</textarea>
+          <div class="block-label">🗣️ Your comment</div>
+          <textarea class="edit-field mk-edit-comment" style="min-height:80px;">${escapeHTML(m.teacherComment || "")}</textarea>
+          <div class="block-label">🔑 Correct answer</div>
+          <textarea class="edit-field mk-edit-correct" style="min-height:70px;">${escapeHTML(m.correctAnswer || "")}</textarea>
+          <div class="block-label">🏷️ Tags (comma-separated)</div>
+          <input class="edit-field mk-edit-tags" value="${escapeHTML((m.mistakeTags || []).join(", "))}" />
+          <div class="action-row" style="margin-top:var(--space-sm);">
+            <button class="btn btn-primary btn-sm mk-edit-save"><span class="spinner"></span><span class="btn-label">💾 Save</span></button>
+            <button class="btn btn-ghost btn-sm mk-edit-cancel">Cancel</button>
+          </div>
+        `;
+        const saveBtn = area.querySelector(".mk-edit-save");
+        saveBtn.addEventListener("click", async () => {
+          const patch = {
+            studentAnswer: area.querySelector(".mk-edit-ans").value.trim(),
+            teacherComment: area.querySelector(".mk-edit-comment").value.trim(),
+            correctAnswer: area.querySelector(".mk-edit-correct").value.trim(),
+            mistakeTags: area.querySelector(".mk-edit-tags").value.split(",").map(s => s.trim()).filter(Boolean).slice(0, 8)
+          };
+          if (!patch.teacherComment) { toast("A comment is required.", "err"); return; }
+          setBtnLoading(saveBtn, true);
+          try {
+            await updateMistake(m.id, patch);
+            renderMistakeView(area, m, false);
+            toast("Mistake updated.", "ok");
+          } catch (err) { console.error(err); toast("Save failed: " + (err.code || err.message), "err"); }
+          finally { setBtnLoading(saveBtn, false); }
+        });
+        area.querySelector(".mk-edit-cancel").addEventListener("click", () => renderMistakeView(area, m, false));
+        area.querySelector(".mk-edit-comment").focus();
+      } else {
+        area.innerHTML = `
+          <div class="block-label">✍️ Student's wrong answer</div>
+          <div class="wrong-block">${escapeHTML(m.studentAnswer || "—")}</div>
+          <div class="block-label">🗣️ Your comment</div>
+          <div class="comment-block">${escapeHTML(m.teacherComment || "—")}</div>
+          ${(m.correctAnswer || "").trim() ? `<div class="block-label">🔑 Correct answer</div><div class="answer-block">${escapeHTML(m.correctAnswer)}</div>` : ""}
+        `;
+      }
+    }
+
+    function rebuildMistakeSelectors() {
+      const subjects = [...new Set(state.mistakes.map(m => m.subject))].sort();
+      const topics = [...new Set(state.mistakes.map(m => m.topic))].sort();
+      if ($("mkFilterSubject")) fillSelect($("mkFilterSubject"), subjects, "All subjects");
+      if ($("mkFilterTopic")) fillSelect($("mkFilterTopic"), topics, "All topics");
+    }
+
     /* ---------- WIRING ---------- */
     // Library (teacher): question-ingest + mark drop-zones
     setupImageDrop("qDropZone", "qFileInput", () => state.qUploads, "qThumbGrid", { allowPdf: true, statusId: "qStatus" });
     setupImageDrop("markQDropZone", "markQFileInput", () => state.markQUploads, "markQThumbGrid", {});
     setupImageDrop("markADropZone", "markAFileInput", () => state.markAUploads, "markAThumbGrid", {});
+    // Mistakes (teacher): question + student-answer drop-zones
+    setupImageDrop("mkQDropZone", "mkQFileInput", () => state.mkQUploads, "mkQThumbGrid", {});
+    setupImageDrop("mkADropZone", "mkAFileInput", () => state.mkAUploads, "mkAThumbGrid", {});
 
     $("qExtractBtn").addEventListener("click", extractQuestions);
     $("qResetBtn").addEventListener("click", resetQIngest);
@@ -3443,6 +3931,14 @@
     ["qFilterSubject", "qFilterTopic"].forEach(id => $(id).addEventListener("change", renderQuestionBank));
     let qQuickTimer = null;
     $("qQuickFilter").addEventListener("input", () => { clearTimeout(qQuickTimer); qQuickTimer = setTimeout(renderQuestionBank, 180); });
+
+    // Mistakes: draft / save / reset + bank filters
+    $("mkDraftBtn").addEventListener("click", draftMistake);
+    $("mkSaveBtn").addEventListener("click", saveMistakeFromForm);
+    $("mkResetBtn").addEventListener("click", resetMistakeForm);
+    ["mkFilterSubject", "mkFilterTopic"].forEach(id => $(id).addEventListener("change", renderMistakeBank));
+    let mkQuickTimer = null;
+    $("mkQuickFilter").addEventListener("input", () => { clearTimeout(mkQuickTimer); mkQuickTimer = setTimeout(renderMistakeBank, 180); });
 
     // Ask: the single search bar — Enter to ask, 📷 / drag / paste to add an image
     async function ingestAskImages(fileList) {
@@ -3475,6 +3971,7 @@
       if (mode === "ask") { buffer = state.askUploads; gridId = "askThumbGrid"; statusId = "askStatus"; }
       else if (mode === "kb") { buffer = state.qUploads; gridId = "qThumbGrid"; statusId = "qStatus"; }
       else if (mode === "mark") { buffer = state.markAUploads; gridId = "markAThumbGrid"; }
+      else if (mode === "mistakes") { buffer = state.mkAUploads; gridId = "mkAThumbGrid"; }
       else return;
       const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
       if (!files.length) return;
