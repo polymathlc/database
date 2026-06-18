@@ -1123,6 +1123,18 @@
     .btn.fg-easy   { background: #E8F5E9; color: #2E7D32; border: 1px solid #C8E6C9; }
     .fp-empty { text-align: center; padding: var(--space-xl); color: var(--text-secondary); }
     .fp-empty .fe-emoji { font-size: 2.6rem; }
+
+    /* Ask: "rules behind the answer" (teacher provenance) + refine note */
+    .ask-sources { margin-top: var(--space-md); padding: var(--space-md); border: 1px solid var(--border-subtle); border-left: 3px solid var(--accent-base); border-radius: var(--radius-md); background: var(--bg-secondary); }
+    .ask-src-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-tertiary); }
+    .ask-src { font-size: var(--font-size-sm); color: var(--text-secondary); padding: 6px 0; border-top: 1px dashed var(--border-subtle); }
+    .ask-src:first-of-type { border-top: none; }
+    .ask-src-tag { display: inline-block; font-size: var(--font-size-xs); font-weight: 700; color: var(--accent-dark); background: var(--accent-bg); border-radius: var(--radius-sm); padding: 1px 7px; margin-right: 6px; }
+    .ask-src-empty { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: 4px; }
+    .refine-note { margin-top: var(--space-md); }
+    .refine-conflicts { margin-top: 6px; font-size: var(--font-size-sm); }
+    .refine-conflicts ul { margin: 4px 0 0 1.1em; }
+    .refine-conflicts li { margin: 2px 0; }
   </style>
 </head>
 <body>
@@ -1888,6 +1900,32 @@
         keywords: Schema.array({ items: Schema.string(), description: "Essential terms/values for retrieving this mistake later." }),
         subject: Schema.string({ description: "One of: Science, Math, Geometry, General, Assessment." }),
         topic: Schema.string({ description: "A concise topic name, e.g. Forces, Fractions, Photosynthesis." })
+      }
+    });
+
+    // Reconcile a teacher's corrected answer with the stored notes it was grounded in, then
+    // distil it into ONE reusable knowledge-base note so the system keeps improving.
+    const REFINE_SYSTEM = [
+      "You help a teacher REFINE their knowledge base from a corrected answer.",
+      "You are given the QUESTION, the STORED NOTES the answer was grounded in, the ORIGINAL AI ANSWER,",
+      "and the TEACHER'S CORRECTED ANSWER — the corrected answer is AUTHORITATIVE.",
+      "Distil the teacher's correction into ONE self-contained knowledge-base note: clear, factual and",
+      "reusable (not a chatty reply), phrased so future questions on this topic retrieve and rely on it.",
+      "Stay faithful to the teacher's correction — do not add facts they did not state or imply.",
+      "In 'conflicts', list any specific STORED NOTE above that this correction contradicts or supersedes,",
+      "quoting a few words of each so the teacher can fix it; empty array if none conflict.",
+      "Also give a one-line 'summary' of what changed, a short 'title', a 'subject', 'topic', 'type' and 'keywords'."
+    ].join("\n");
+    const refineSchema = Schema.object({
+      properties: {
+        entryText: Schema.string({ description: "The refined, self-contained knowledge note to store — the teacher's corrected knowledge, factual and reusable." }),
+        title: Schema.string({ description: "A short title for the note." }),
+        subject: Schema.string({ description: "One of: Science, Math, Geometry, General, Assessment." }),
+        topic: Schema.string({ description: "A concise topic name, e.g. Forces, Fractions." }),
+        type: Schema.string({ description: "One of: definition, concept, example, formula, fact, process, law, list, other." }),
+        keywords: Schema.array({ items: Schema.string(), description: "Key terms for retrieving this note later." }),
+        conflicts: Schema.array({ items: Schema.string(), description: "Stored notes this correction contradicts or supersedes (quote a few words of each). Empty array if none." }),
+        summary: Schema.string({ description: "One line describing what the refinement changed or added." })
       }
     });
 
@@ -3769,7 +3807,7 @@
           "", "REFERENCE MATERIAL:", buildAskContext(syllabus, questions)
         ].filter(Boolean).join("\n");
         const res = await askGeminiJSON(prompt, askSchema, { system: ASK_SYSTEM, temperature: 0.3 });
-        state._lastAsk = { questionText, answer: res.answer || "", explanation: res.explanation || "" };
+        state._lastAsk = { questionText, answer: res.answer || "", explanation: res.explanation || "", syllabus, questions, refine: null };
         renderHelp(res);
         status.textContent = "";
         logAttempt({ kind: "ask", questionText, usedQuestions: questions.map(q => q.id) });
@@ -3785,23 +3823,157 @@
       const panel = el("div", "result-panel");
       panel.appendChild(el("div", "result-head", `<span>💡 Answer</span>`));
       const body = el("div", "result-body");
+
+      // The answer area swaps between read-only display and an editor.
+      const answerArea = el("div", "ask-answer-area");
+      body.appendChild(answerArea);
+
+      // Explanation + keywords + grounding note (static parts of the reply).
       const kwUsed = (res.keywordsUsed || []);
-      body.innerHTML = `
-        <p class="approach-text">${escapeHTML(res.answer || "")}</p>
+      const extra = el("div");
+      extra.innerHTML = `
         ${res.explanation ? `<div class="block-label">🧭 Explanation</div><p class="approach-text">${escapeHTML(res.explanation)}</p>` : ""}
         ${kwUsed.length ? `<div class="block-label">🔑 Key ideas used</div><div class="kw-approved-row">${kwUsed.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
         ${res.groundedNote ? `<div class="ai-note" style="margin-top:var(--space-md);"><span class="ai-note-label">⚠ Note</span>${escapeHTML(res.groundedNote)}</div>` : ""}
       `;
-      // Anyone can turn a good answer into a short, spaced-repetition flashcard.
-      if ((res.answer || "").trim()) {
-        const actions = el("div", "action-row");
-        actions.style.marginTop = "var(--space-md)";
-        actions.innerHTML = `<button class="btn btn-secondary btn-sm" id="askFlashBtn"><span class="spinner"></span><span class="btn-label">🗂️ Save as flashcard</span></button>`;
-        body.appendChild(actions);
-        const fb = actions.querySelector("#askFlashBtn");
-        if (fb) fb.addEventListener("click", () => createFlashcardFromAsk(fb));
-      }
+      body.appendChild(extra);
+
+      // Teachers see the stored notes ("rules") this answer was grounded in.
+      if (state.isTeacher) body.appendChild(buildSourcesBlock());
+
+      const actions = el("div", "action-row");
+      actions.style.marginTop = "var(--space-md)";
+      body.appendChild(actions);
+
       panel.appendChild(body); out.appendChild(panel);
+      renderAnswerDisplay(answerArea, actions);
+    }
+
+    // The stored notes the answer leaned on — the teacher's "rules behind the answer".
+    function buildSourcesBlock() {
+      const wrap = el("div", "ask-sources");
+      const syl = (state._lastAsk && state._lastAsk.syllabus) || [];
+      const qs = (state._lastAsk && state._lastAsk.questions) || [];
+      if (!syl.length && !qs.length) {
+        wrap.innerHTML = `<div class="block-label">📑 Rules behind this answer</div>`
+          + `<p class="ask-src-empty">No stored notes matched — this answer used general knowledge, so it's a good one to <strong>edit &amp; teach</strong>.</p>`;
+        return wrap;
+      }
+      const sylTop = syl.slice(0, 6), qTop = qs.slice(0, 4);
+      const moreN = (syl.length - sylTop.length) + (qs.length - qTop.length);
+      const parts = [`<div class="block-label">📑 Rules behind this answer <span class="ask-src-hint">— the stored notes it was grounded in</span></div>`];
+      sylTop.forEach(e => parts.push(`<div class="ask-src"><span class="ask-src-tag">${escapeHTML((e.subject || "") + " › " + (e.topic || ""))}</span> ${escapeHTML(e.text || "")}</div>`));
+      qTop.forEach(q => parts.push(`<div class="ask-src"><span class="ask-src-tag">Q-bank</span> ${escapeHTML(q.questionText || "")}${q.answerKey ? " — <em>" + escapeHTML(q.answerKey) + "</em>" : ""}</div>`));
+      if (moreN > 0) parts.push(`<div class="ask-src-empty">…and ${moreN} more lower-ranked note${moreN === 1 ? "" : "s"}.</div>`);
+      wrap.innerHTML = parts.join("");
+      return wrap;
+    }
+
+    // Read-only answer + action buttons (flashcard for everyone; edit & refine for teachers).
+    function renderAnswerDisplay(answerArea, actions) {
+      const a = state._lastAsk || {};
+      const ans = a.answer || "";
+      const r = a.refine;
+      answerArea.innerHTML = `<p class="approach-text">${escapeHTML(ans)}</p>`
+        + (r ? `<div class="ai-note refine-note"><span class="ai-note-label">✅ Learned</span>${escapeHTML(r.summary || "Saved your refinement to the library.")}`
+            + ((r.conflicts && r.conflicts.length) ? `<div class="refine-conflicts"><strong>Existing notes this corrects (review in Library):</strong><ul>${r.conflicts.map(c => `<li>${escapeHTML(c)}</li>`).join("")}</ul></div>` : "")
+            + `</div>` : "");
+      actions.innerHTML = "";
+      if (!ans.trim()) return;
+      const flashBtn = el("button", "btn btn-secondary btn-sm", `<span class="spinner"></span><span class="btn-label">🗂️ Save as flashcard</span>`);
+      flashBtn.addEventListener("click", () => createFlashcardFromAsk(flashBtn));
+      actions.appendChild(flashBtn);
+      if (state.isTeacher) {
+        const editBtn = el("button", "btn btn-ghost btn-sm", "✏️ Edit &amp; refine");
+        editBtn.addEventListener("click", () => renderAnswerEditor(answerArea, actions));
+        actions.appendChild(editBtn);
+      }
+    }
+
+    // Editable answer — the textarea automatically gains the 🎤 voice + ✨ improve tools
+    // (the field-tools MutationObserver enhances any text field added to the page).
+    function renderAnswerEditor(answerArea, actions) {
+      const ans = (state._lastAsk && state._lastAsk.answer) || "";
+      answerArea.innerHTML = `
+        <div class="block-label">✏️ Edit the answer — saving reconciles it with your stored notes and teaches the system</div>
+        <textarea class="input-area" id="askEditArea" style="min-height:120px;">${escapeHTML(ans)}</textarea>`;
+      actions.innerHTML = "";
+      const saveBtn = el("button", "btn btn-primary btn-sm", `<span class="spinner"></span><span class="btn-label">💾 Save &amp; teach the system</span>`);
+      saveBtn.addEventListener("click", () => refineFromEdit(saveBtn, answerArea, actions));
+      const cancelBtn = el("button", "btn btn-ghost btn-sm", "Cancel");
+      cancelBtn.addEventListener("click", () => renderAnswerDisplay(answerArea, actions));
+      actions.appendChild(saveBtn); actions.appendChild(cancelBtn);
+      const ta = answerArea.querySelector("#askEditArea");
+      if (ta) ta.focus();
+    }
+
+    // Reconcile the teacher's edit with the grounding notes and store the refinement.
+    async function refineFromEdit(btn, answerArea, actions) {
+      const ta = $("askEditArea");
+      const edited = (ta && ta.value || "").trim();
+      if (!edited) { toast("The answer can't be empty.", "err"); return; }
+      const a = state._lastAsk || {};
+      setBtnLoading(btn, true);
+      try {
+        const syl = a.syllabus || [], qs = a.questions || [];
+        const ctx = [];
+        syl.forEach((e, i) => ctx.push(`[S${i + 1}] (${e.subject} › ${e.topic}) ${e.text}`));
+        qs.forEach((q, i) => ctx.push(`[Q${i + 1}] ${q.questionText}${q.answerKey ? (" — ANSWER: " + q.answerKey) : ""}`));
+        const prompt = [
+          "QUESTION:", a.questionText || "",
+          "", "STORED NOTES the answer was grounded in:", ctx.length ? ctx.join("\n") : "(none matched)",
+          "", "ORIGINAL AI ANSWER:", a.answer || "",
+          "", "TEACHER'S CORRECTED ANSWER (authoritative):", edited
+        ].join("\n");
+        let res;
+        try {
+          res = await askGeminiJSON(prompt, refineSchema, { system: REFINE_SYSTEM, temperature: 0.2 });
+        } catch (e) {
+          console.warn("refine reconcile failed — storing the edit verbatim:", e);
+          res = { entryText: edited, title: (a.questionText || "").slice(0, 80), conflicts: [], summary: "Saved your corrected answer to the library." };
+        }
+        const ALLOWED = new Set(ENTRY_TYPES);
+        await saveRefinedEntry({
+          text: (res.entryText || edited).trim(),
+          title: res.title || (a.questionText || "").slice(0, 80),
+          subject: res.subject || (syl[0] && syl[0].subject) || "General",
+          topic: res.topic || (syl[0] && syl[0].topic) || "Uncategorised",
+          type: ALLOWED.has((res.type || "").toLowerCase()) ? res.type.toLowerCase() : "concept",
+          keywords: res.keywords || []
+        });
+        state._lastAsk.answer = edited;
+        state._lastAsk.refine = { summary: res.summary || "Saved your refinement to the library.", conflicts: (res.conflicts || []).filter(Boolean) };
+        renderAnswerDisplay(answerArea, actions);
+        renderEverything();   // refresh Library counts/lists with the new note
+        toast("Saved — the system learned your refinement ✓", "ok", 4200);
+      } catch (err) {
+        console.error(err);
+        toast(err && err.message ? err.message : "Could not save the refinement.", "err", 5000);
+      } finally { setBtnLoading(btn, false); }
+    }
+
+    // Store a teacher refinement as a new, verified knowledge-base entry (kept verbatim — it is
+    // the teacher's own corrected wording) so future Ask/Mark retrieval relies on it.
+    async function saveRefinedEntry(e) {
+      const ref = doc(collection(db, ENTRIES_COLLECTION));
+      const data = {
+        owner: state.user.uid,
+        ownerEmail: (state.user.email || "").toLowerCase(),
+        text: e.text,
+        title: e.title || "",
+        subject: e.subject || "General",
+        topic: e.topic || "Uncategorised",
+        type: e.type || "concept",
+        keywords: Array.isArray(e.keywords) ? e.keywords.slice(0, 12) : [],
+        verified: true,
+        refined: true,        // marks notes taught via "Edit & refine"
+        sourceId: null,
+        createdAtMs: Date.now()
+      };
+      await setDoc(ref, data);
+      const obj = { id: ref.id, ...data };
+      state.entries.unshift(obj);
+      return obj;
     }
 
     /* =======================================================================

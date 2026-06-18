@@ -216,6 +216,25 @@ Each deck is strictly private to its owner (see the rules note above).
 
 ---
 
+## Refine answers — teach the system (teacher)
+
+Teachers can keep improving the tutor straight from the **Ask** results:
+
+- **See the rules behind an answer.** Every Ask answer now shows **📑 Rules behind this answer** —
+  the stored notes (and question-bank entries) it was grounded in — so you can judge *why* it
+  replied that way. (Shown to teachers only.)
+- **Edit & refine.** Don't like the answer? Click **✏️ Edit & refine**, fix the wording in place
+  (the box has the 🎤 voice and ✨ improve helpers), then **💾 Save & teach the system**.
+- **The AI reconciles it into your knowledge.** Your corrected answer is treated as authoritative:
+  the AI distils it — against the very notes it was grounded in — into one concise, reusable
+  **verified note** that's saved to the library, so future Ask/Mark answers rely on it. Anything
+  your correction contradicts is flagged as a conflict to review. In keeping with the app's
+  *word-for-word* promise it **adds** your refined note rather than silently rewriting existing
+  passages; delete a flagged old note in the Library if you want it gone. Refined notes are stored
+  in `wordvault_entries` with `verified: true` and `refined: true`.
+
+---
+
 ## Notes & limits
 
 - OCR/answer quality depends on image clarity and on how much syllabus material you've
