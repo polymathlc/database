@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Magnet Playground</title>
+<style>
+  :root {
+    --north: #ff4d5e;
+    --south: #2f7bff;
+    --bg0: #0d1117;
+    --bg1: #161b29;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg0);
+    color: #e9edf5;
+    user-select: none; -webkit-user-select: none;
+  }
+  #stage {
+    position: fixed; inset: 0;
+    display: block;
+    background: radial-gradient(120% 120% at 50% 0%, var(--bg1) 0%, var(--bg0) 70%);
+    touch-action: none;
+    cursor: grab;
+  }
+  #stage.grabbing { cursor: grabbing; }
+
+  .panel {
+    position: fixed; top: 14px; left: 14px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 12px;
+    background: rgba(22, 27, 41, 0.72);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+    max-width: calc(100vw - 28px);
+    z-index: 10;
+  }
+  .title {
+    font-weight: 700; font-size: 14px; letter-spacing: .3px;
+    margin-right: 4px; opacity: .95;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .title .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: linear-gradient(90deg, var(--north) 0 50%, var(--south) 50% 100%);
+    box-shadow: 0 0 10px rgba(255,77,94,.5);
+  }
+  button {
+    font: inherit; font-size: 13px; font-weight: 600;
+    color: #e9edf5;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    padding: 8px 12px; border-radius: 10px;
+    cursor: pointer; transition: transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  button:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.22); }
+  button:active { transform: translateY(1px) scale(.98); }
+  button.primary {
+    background: linear-gradient(135deg, #ff4d5e, #2f7bff);
+    border: none; color: #fff;
+    box-shadow: 0 4px 14px rgba(47,123,255,.35);
+  }
+  button.toggle.off { opacity: .55; }
+  .count { font-size: 12px; opacity: .7; margin-left: 2px; }
+
+  .hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 12.5px; color: rgba(233,237,245,.62);
+    background: rgba(22,27,41,.6);
+    border: 1px solid rgba(255,255,255,.07);
+    padding: 8px 14px; border-radius: 999px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    white-space: nowrap; pointer-events: none;
+    z-index: 10; text-align: center;
+  }
+  @media (max-width: 560px) {
+    .title span.full { display: none; }
+    .hint { font-size: 11px; max-width: calc(100vw - 28px); white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="panel">
+  <div class="title"><span class="dot"></span><span class="full">Magnet&nbsp;Playground</span></div>
+  <button class="primary" id="add">+ Add magnet</button>
+  <button id="clear">Clear</button>
+  <button class="toggle" id="field">Field lines</button>
+  <span class="count" id="count">0 magnets</span>
+</div>
+
+<div class="hint" id="hint">Drag magnets to move them · opposite poles attract, like poles repel · double&#8209;tap a magnet to flip · double&#8209;tap empty space to add</div>
+
+<script>
+"use strict";
+(function () {
+  const canvas = document.getElementById("stage");
+  const ctx = canvas.getContext("2d");
+
+  // ---- Display / DPR handling ----------------------------------------------
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---- Magnet model --------------------------------------------------------
+  // A bar magnet is a dipole: a NORTH pole (+) at one end and a SOUTH pole (-)
+  // at the other. Forces between poles follow an inverse-square law (like
+  // magnetic charges repel, unlike attract), which yields realistic translation
+  // AND torque so magnets rotate to snap together N-S.
+  class Magnet {
+    constructor(x, y, angle) {
+      this.x = x; this.y = y;
+      this.angle = (angle === undefined) ? Math.random() * Math.PI * 2 : angle;
+      this.vx = 0; this.vy = 0; this.omega = 0;
+      this.len = 78;        // distance between the two poles (px)
+      this.thick = 26;      // visual thickness
+      this.strength = 1;    // pole strength
+      this.mass = 1;
+      this.inertia = (1 / 12) * this.mass * this.len * this.len;
+      this.fx = 0; this.fy = 0; this.torque = 0;
+      this.dragging = false;
+      this.flip = 1;        // +1 normal, -1 swapped poles
+    }
+    // Returns the two pole positions with signed charge.
+    poles(out) {
+      const hx = Math.cos(this.angle) * this.len * 0.5;
+      const hy = Math.sin(this.angle) * this.len * 0.5;
+      const q = this.strength * this.flip;
+      out[0].x = this.x + hx; out[0].y = this.y + hy; out[0].q = q;   // North end (+)
+      out[1].x = this.x - hx; out[1].y = this.y - hy; out[1].q = -q;  // South end (-)
+      return out;
+    }
+  }
+
+  let magnets = [];
+  const updateCount = () => {
+    const c = document.getElementById("count");
+    c.textContent = magnets.length + (magnets.length === 1 ? " magnet" : " magnets");
+  };
+
+  function addMagnet(x, y, angle) {
+    if (x === undefined) {
+      x = W / 2 + (Math.random() - 0.5) * 120;
+      y = H / 2 + (Math.random() - 0.5) * 120;
+    }
+    const m = new Magnet(x, y, angle);
+    // a little kick so it feels alive
+    m.omega = (Math.random() - 0.5) * 2;
+    magnets.push(m);
+    updateCount();
+    return m;
+  }
+
+  // ---- Physics -------------------------------------------------------------
+  const K = 230000;       // pole interaction constant
+  const SOFT = 420;       // softening (px^2) — bounds force, no singularities
+  const LIN_DAMP = 0.990; // per-substep linear damping
+  const ANG_DAMP = 0.985; // per-substep angular damping
+  const MAX_SPEED = 1500;
+  const MAX_OMEGA = 11;
+  const FIXED = 1 / 120;  // fixed physics timestep (s)
+
+  // scratch pole buffers (avoid per-frame allocation)
+  const poleBuf = [];
+  function ensureBuffers() {
+    while (poleBuf.length < magnets.length) {
+      poleBuf.push([{ x: 0, y: 0, q: 0 }, { x: 0, y: 0, q: 0 }]);
+    }
+  }
+
+  function step(dt) {
+    const n = magnets.length;
+    ensureBuffers();
+    for (let i = 0; i < n; i++) {
+      const m = magnets[i];
+      m.fx = 0; m.fy = 0; m.torque = 0;
+      m.poles(poleBuf[i]);
+    }
+
+    // Pairwise pole interactions
+    for (let i = 0; i < n; i++) {
+      const mi = magnets[i], A = poleBuf[i];
+      for (let j = i + 1; j < n; j++) {
+        const mj = magnets[j], B = poleBuf[j];
+        for (let a = 0; a < 2; a++) {
+          const pa = A[a];
+          for (let b = 0; b < 2; b++) {
+            const pb = B[b];
+            let dx = pa.x - pb.x;
+            let dy = pa.y - pb.y;
+            const r2 = dx * dx + dy * dy + SOFT;
+            const r = Math.sqrt(r2);
+            // magnitude (signed): + => repel, - => attract; direction pa<-pb
+            const f = K * pa.q * pb.q / (r2 * r);
+            const fx = f * dx;
+            const fy = f * dy;
+            // apply to i (force at pole pa), equal & opposite to j
+            mi.fx += fx; mi.fy += fy;
+            mi.torque += (pa.x - mi.x) * fy - (pa.y - mi.y) * fx;
+            mj.fx -= fx; mj.fy -= fy;
+            mj.torque -= (pb.x - mj.x) * fy - (pb.y - mj.y) * fx;
+          }
+        }
+      }
+    }
+
+    // Integrate
+    const margin = 8;
+    for (let i = 0; i < n; i++) {
+      const m = magnets[i];
+
+      // rotation responds to torque even while dragging (so it snaps/aligns)
+      m.omega += (m.torque / m.inertia) * dt;
+      m.omega *= ANG_DAMP;
+      if (m.omega > MAX_OMEGA) m.omega = MAX_OMEGA;
+      else if (m.omega < -MAX_OMEGA) m.omega = -MAX_OMEGA;
+      m.angle += m.omega * dt;
+
+      if (m.dragging) continue; // position controlled by the pointer
+
+      m.vx += (m.fx / m.mass) * dt;
+      m.vy += (m.fy / m.mass) * dt;
+      m.vx *= LIN_DAMP; m.vy *= LIN_DAMP;
+
+      const sp = Math.hypot(m.vx, m.vy);
+      if (sp > MAX_SPEED) { const s = MAX_SPEED / sp; m.vx *= s; m.vy *= s; }
+
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+
+      // soft walls — bounce with energy loss
+      const reach = m.len * 0.5 + m.thick * 0.5;
+      if (m.x < margin + reach) { m.x = margin + reach; if (m.vx < 0) m.vx *= -0.5; }
+      if (m.x > W - margin - reach) { m.x = W - margin - reach; if (m.vx > 0) m.vx *= -0.5; }
+      if (m.y < margin + reach) { m.y = margin + reach; if (m.vy < 0) m.vy *= -0.5; }
+      if (m.y > H - margin - reach) { m.y = H - margin - reach; if (m.vy > 0) m.vy *= -0.5; }
+    }
+  }
+
+  // ---- Rendering -----------------------------------------------------------
+  let showField = true;
+  const FIELD_GAP = 42;
+
+  function drawField() {
+    if (!showField || magnets.length === 0) return;
+    const buf = poleBuf;
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = "round";
+    for (let gy = FIELD_GAP / 2; gy < H; gy += FIELD_GAP) {
+      for (let gx = FIELD_GAP / 2; gx < W; gx += FIELD_GAP) {
+        let bx = 0, by = 0;
+        for (let i = 0; i < magnets.length; i++) {
+          const P = buf[i];
+          for (let p = 0; p < 2; p++) {
+            const po = P[p];
+            const dx = gx - po.x, dy = gy - po.y;
+            const r2 = dx * dx + dy * dy + 60;
+            const inv = po.q / (r2 * Math.sqrt(r2));
+            bx += dx * inv; by += dy * inv;
+          }
+        }
+        const mag = Math.hypot(bx, by);
+        if (mag < 1e-6) continue;
+        const ux = bx / mag, uy = by / mag;
+        // alpha scales with field strength (clamped) for a soft look
+        const a = Math.min(0.5, mag * 5500);
+        if (a < 0.04) continue;
+        const len = 13;
+        const cx = gx, cy = gy;
+        ctx.strokeStyle = "rgba(150,180,255," + a.toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.moveTo(cx - ux * len * 0.5, cy - uy * len * 0.5);
+        ctx.lineTo(cx + ux * len * 0.5, cy + uy * len * 0.5);
+        ctx.stroke();
+        // tiny arrow head pointing along field (N -> S convention shown by dot)
+        ctx.fillStyle = "rgba(150,180,255," + a.toFixed(3) + ")";
+        ctx.beginPath();
+        ctx.arc(cx + ux * len * 0.5, cy + uy * len * 0.5, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function roundRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawMagnet(m) {
+    const L = m.len, T = m.thick;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.angle);
+
+    // shadow
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = m.dragging ? 26 : 14;
+    ctx.shadowOffsetY = 5;
+
+    // which end is North depends on flip
+    const northRight = m.flip > 0;
+    const leftColor = northRight ? "#2f7bff" : "#ff4d5e";
+    const rightColor = northRight ? "#ff4d5e" : "#2f7bff";
+
+    // body halves
+    const x0 = -L / 2 - T / 2, w = L + T, h = T;
+    // left half
+    ctx.fillStyle = leftColor;
+    roundRectPath(x0, -h / 2, w / 2, h, h / 2);
+    ctx.fill();
+    // right half
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = rightColor;
+    roundRectPath(x0 + w / 2, -h / 2, w / 2, h, h / 2);
+    ctx.fill();
+
+    // glossy top highlight
+    const grd = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    grd.addColorStop(0, "rgba(255,255,255,0.35)");
+    grd.addColorStop(0.5, "rgba(255,255,255,0.05)");
+    grd.addColorStop(1, "rgba(0,0,0,0.18)");
+    ctx.fillStyle = grd;
+    roundRectPath(x0, -h / 2, w, h, h / 2);
+    ctx.fill();
+
+    // center seam
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, -h / 2 + 2); ctx.lineTo(0, h / 2 - 2); ctx.stroke();
+
+    // pole letters — always upright & readable
+    const labelR = L / 2;
+    ctx.save();
+    ctx.font = "700 15px -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    // right end label
+    ctx.save(); ctx.translate(labelR, 0); ctx.rotate(-m.angle);
+    ctx.fillText(northRight ? "N" : "S", 0, 0); ctx.restore();
+    // left end label
+    ctx.save(); ctx.translate(-labelR, 0); ctx.rotate(-m.angle);
+    ctx.fillText(northRight ? "S" : "N", 0, 0); ctx.restore();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    drawField();
+    for (let i = 0; i < magnets.length; i++) drawMagnet(magnets[i]);
+  }
+
+  // ---- Main loop (fixed-timestep accumulator) ------------------------------
+  let last = performance.now();
+  let acc = 0;
+  function frame(now) {
+    let dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.05) dt = 0.05; // avoid spiral of death on tab switch
+    acc += dt;
+    let guard = 0;
+    while (acc >= FIXED && guard < 10) { step(FIXED); acc -= FIXED; guard++; }
+    render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- Pointer interaction -------------------------------------------------
+  let drag = null; // { m, offx, offy, lx, ly, lt }
+
+  function pointFromEvent(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  // distance from point to the magnet's bar segment (for accurate grabbing)
+  function hitMagnet(px, py) {
+    let best = null, bestD = Infinity;
+    for (let i = magnets.length - 1; i >= 0; i--) {
+      const m = magnets[i];
+      const hx = Math.cos(m.angle) * m.len * 0.5;
+      const hy = Math.sin(m.angle) * m.len * 0.5;
+      const ax = m.x - hx, ay = m.y - hy;
+      const bx = m.x + hx, by = m.y + hy;
+      const dx = bx - ax, dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+      const cx = ax + t * dx, cy = ay + t * dy;
+      const d = Math.hypot(px - cx, py - cy);
+      if (d < bestD) { bestD = d; best = m; }
+    }
+    if (best && bestD <= best.thick * 0.5 + 12) return best;
+    return null;
+  }
+
+  function onDown(e) {
+    const p = pointFromEvent(e);
+    const m = hitMagnet(p.x, p.y);
+    if (m) {
+      // bring to front
+      const idx = magnets.indexOf(m);
+      if (idx >= 0) { magnets.splice(idx, 1); magnets.push(m); }
+      m.dragging = true;
+      m.vx = 0; m.vy = 0;
+      drag = { m, offx: p.x - m.x, offy: p.y - m.y, lx: p.x, ly: p.y, lt: performance.now() };
+      canvas.classList.add("grabbing");
+    }
+    if (canvas.setPointerCapture && e.pointerId !== undefined) {
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+  }
+
+  function onMove(e) {
+    if (!drag) return;
+    const p = pointFromEvent(e);
+    const m = drag.m;
+    const nx = p.x - drag.offx;
+    const ny = p.y - drag.offy;
+    const now = performance.now();
+    const dtm = Math.max(0.001, (now - drag.lt) / 1000);
+    // velocity for "throwing" on release
+    m.vx = (nx - m.x) / dtm;
+    m.vy = (ny - m.y) / dtm;
+    m.x = nx; m.y = ny;
+    drag.lx = p.x; drag.ly = p.y; drag.lt = now;
+  }
+
+  function onUp(e) {
+    if (drag) {
+      const m = drag.m;
+      m.dragging = false;
+      // clamp throw velocity
+      const sp = Math.hypot(m.vx, m.vy);
+      if (sp > MAX_SPEED) { const s = MAX_SPEED / sp; m.vx *= s; m.vy *= s; }
+      drag = null;
+    }
+    canvas.classList.remove("grabbing");
+  }
+
+  canvas.addEventListener("pointerdown", onDown);
+  canvas.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  canvas.addEventListener("pointercancel", onUp);
+
+  // double-tap / double-click: flip a magnet, or add one on empty space
+  let lastTap = 0, lastTapX = 0, lastTapY = 0;
+  canvas.addEventListener("pointerup", function (e) {
+    const now = performance.now();
+    const p = pointFromEvent(e);
+    if (now - lastTap < 320 && Math.hypot(p.x - lastTapX, p.y - lastTapY) < 30) {
+      const m = hitMagnet(p.x, p.y);
+      if (m) { m.flip *= -1; m.omega += (Math.random() - 0.5) * 3; }
+      else { addMagnet(p.x, p.y); }
+      lastTap = 0;
+    } else {
+      lastTap = now; lastTapX = p.x; lastTapY = p.y;
+    }
+  });
+  // suppress the browser's native double-click zoom/select
+  canvas.addEventListener("dblclick", (e) => e.preventDefault());
+
+  // ---- UI buttons ----------------------------------------------------------
+  document.getElementById("add").addEventListener("click", () => addMagnet());
+  document.getElementById("clear").addEventListener("click", () => {
+    magnets = []; poleBuf.length = 0; updateCount();
+  });
+  const fieldBtn = document.getElementById("field");
+  fieldBtn.addEventListener("click", () => {
+    showField = !showField;
+    fieldBtn.classList.toggle("off", !showField);
+  });
+
+  // ---- Seed with a few magnets so it's lively on load ----------------------
+  addMagnet(W / 2 - 130, H / 2 - 40, 0);
+  addMagnet(W / 2 + 130, H / 2 + 30, Math.PI);
+  addMagnet(W / 2, H / 2 + 120, Math.PI / 2);
+
+  // hide the hint after a while
+  setTimeout(() => {
+    const h = document.getElementById("hint");
+    if (h) { h.style.transition = "opacity .8s"; h.style.opacity = "0"; }
+  }, 9000);
+})();
+</script>
+</body>
+</html>
