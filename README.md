@@ -12,24 +12,30 @@ no server — open the file or host it as a static page.
 
 ## What it does (mapped to the goal)
 
+The student interface is **one search bar**. Type any question (or upload an image of it) and
+press Enter; the AI answers using a single unified library — it draws keywords from the
+**syllabus** first and falls back to the **question bank** to complete the answer, then replies
+with an answer + explanation phrased for the student. The syllabus knowledge base and the
+question bank are managed together by the teacher in one **Library**.
+
 | You wanted… | Where it lives |
 |---|---|
-| Learn the syllabus textbook **word for word** | **📚 Knowledge Base** — paste text or upload digital PDFs; AI splits into verbatim entries that are verified against the original source. |
-| Feed **PDFs and screenshots** | **❓ Question Bank → Ingest** accepts images *and* PDFs (and pasted screenshots). |
-| **AI OCR the entire PDF** | Every page (or screenshot) is rendered to an image and read by Gemini vision — works even on **scanned papers with no text layer**. |
-| Convert each question's **text + picture → descriptive text + answer key** | Ingestion captures `questionText` (verbatim OCR), an `imageDescription` of any figure/diagram, and an `answerKey` + `approvedKeywords` + `markingPoints`. |
-| Take the answer **word for word from the answer key in the last pages** | Set **"Answer-key pages at end"** when ingesting a PDF; those pages are transcribed verbatim and each question's answer is copied from them word for word (the AI only drafts an answer when no key is supplied). |
-| Edit any stored answer | In the **Question Bank**, each question has an ✏️ button to edit its answer key and approved keywords inline; changes are saved to Firestore. |
-| Students upload a question image → **how to do it, in approved keywords** | **🎓 Ask** — photograph/type a question; the tutor matches it to the bank + knowledge base and explains the method, **grounded only in your stored material** and weaving in your approved keywords. |
-| **Mark** student answers + give feedback | **✅ Mark** — paste or upload an image of the question and the student's answer; the AI crafts the correct answer by consulting the syllabus knowledge base + question bank, then scores it with points met/missed and feedback in your voice. |
+| One **unified** knowledge base + question bank | Teacher **📚 Library** holds both (syllabus notes/PDFs *and* OCR'd questions with answer keys); the student **🔎 Ask** searches across both. |
+| Students get **just one search bar** | The whole student UI is the Ask bar — ask any question, optionally attach an image. No tabs, filters or other buttons. |
+| **AI OCR** of PDFs & screenshots | Every page/screenshot is rendered to an image and read by Gemini vision — works on **scanned papers with no text layer**. |
+| Convert each question's **text + picture → descriptive text + answer key** | Ingestion captures `questionText` (verbatim OCR), an `imageDescription` of any figure, and an `answerKey` + `approvedKeywords`. |
+| Take the answer **word for word from the answer key in the last pages** | Set **"Answer-key pages at end"** when ingesting a PDF; those pages are transcribed verbatim and each question's answer is copied from them word for word. |
+| Edit any stored answer | Each question in the Library has an ✏️ button to edit its answer key and approved keywords inline. |
+| Ask → **answer in the essence of the keywords**, tailored | Ask consults the syllabus then the question bank; the reply carries the essence of both sources' key terms but is phrased to directly answer the student. |
+| **Mark** student answers + give feedback | **✅ Mark** (teacher) — paste/upload the question and the student's answer; the AI crafts the correct answer from the syllabus + question bank, then scores it with feedback. |
 
 ---
 
 ## Roles
 
-Sign‑in is with Google. Your account (`ADMIN_EMAIL` in `index.html`) is the **Teacher** and
-sees every tool. Everyone else is a **Student** and sees a read‑only Knowledge Base plus
-**Ask** and **Mark**. Ingesting and editing the Question Bank are teacher‑only.
+Sign‑in is with Google. Your account (`ADMIN_EMAIL` in `index.html`) is the **Teacher** and sees
+the full nav: **Ask**, **Library** (load syllabus + OCR/edit the question bank), and **Mark**.
+Everyone else is a **Student** and sees **only the Ask search bar** — nothing else.
 
 ---
 
@@ -100,13 +106,13 @@ Students still write their own `wordvault_attempts`; only the teacher writes the
 
 ## Day‑to‑day workflow
 
-1. **Load the syllabus** (Knowledge Base → paste or upload digital PDFs) so the tutor has
-   verbatim passages to ground its explanations in.
-2. **Ingest questions** (Question Bank) from screenshots/scans. If the paper's answer key is
-   in its last pages, set **"Answer-key pages at end"** so each answer is taken word for word
-   from that key. Review the OCR, answer key and approved keywords, then save.
-3. **Edit** any answer later with the ✏️ button on a question card.
-4. Students **Ask** ("how do I do this?") and **Mark** ("is my answer right?").
+1. Teacher → **Library**: load the syllabus (paste or upload digital PDFs) so answers have
+   verbatim passages to draw keywords from.
+2. Teacher → **Library**: ingest question papers (screenshots/scans). If the answer key is in
+   the last pages, set **"Answer-key pages at end"** so each answer is taken word for word from
+   it. Review, then save. Edit any answer later with the ✏️ button.
+3. Students just **Ask**: type a question (or upload an image) in the single search bar and
+   press Enter. Teachers can also **Mark** a student's answer.
 
 ---
 

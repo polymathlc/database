@@ -983,6 +983,40 @@
     .point-list li .pmark { flex-shrink: 0; font-weight: 700; }
     .point-list.met li .pmark { color: #2E7D32; }
     .point-list.missed li .pmark { color: #C62828; }
+
+    /* =========================================================================
+       21. ASK — single unified search bar (the whole student interface)
+       ========================================================================= */
+    .ask-hero { max-width: 720px; margin: var(--space-xl) auto var(--space-lg); text-align: center; }
+    .ask-title { font-size: var(--font-size-xl); font-weight: 700; margin-bottom: var(--space-lg); }
+    .ask-bar {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: 6px 6px 6px 18px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-full);
+      background: var(--bg-primary);
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+    .ask-bar:focus-within { border-color: var(--accent-base); box-shadow: 0 0 0 4px var(--accent-bg); }
+    .ask-bar.dragover { border-color: var(--accent-dark); background: var(--accent-bg); }
+    .ask-bar-icon { font-size: 1.1rem; opacity: 0.7; flex-shrink: 0; }
+    .ask-input {
+      flex: 1; border: none; outline: none; background: transparent;
+      font-size: var(--font-size-md); color: var(--text-primary); padding: 10px 0;
+    }
+    .ask-img-btn {
+      width: 44px; height: 44px; flex-shrink: 0;
+      border: none; border-radius: 50%;
+      background: var(--accent-light); color: var(--text-primary);
+      font-size: 1.2rem; transition: all var(--transition-base);
+    }
+    .ask-img-btn:hover { background: var(--accent-base); color: var(--text-inverse); transform: translateY(-1px); }
+    .ask-spinner { flex-shrink: 0; margin-right: 8px; }
+    .ask-hint { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-top: var(--space-md); }
+    #mode-ask .thumb-grid { max-width: 720px; margin-left: auto; margin-right: auto; }
+    #mode-ask #askOutput { max-width: 760px; margin: 0 auto; }
+    #mode-ask .result-panel { text-align: left; }
   </style>
 </head>
 <body>
@@ -1010,10 +1044,9 @@
   <main class="page-container">
     <h1 class="page-title animate-in">Polymath WordVault</h1>
     <p class="page-subtitle animate-in">
-      The teacher-in-a-box. Learn the syllabus <strong>word for word</strong>, OCR whole PDFs and
-      screenshots into a searchable question bank with answer keys, let students photograph a
-      question to get <strong>guided help in approved keywords</strong>, mark their answers with
-      feedback, and <strong>train</strong> the system by choosing the best answers yourself.
+      Ask any question — type it or upload an image — and get an answer grounded in the
+      <strong>syllabus</strong> and <strong>question bank</strong>. Teachers load the syllabus
+      and OCR question papers behind the scenes; students just ask.
     </p>
 
     <!-- ===================== SIGN-IN GATE ===================== -->
@@ -1032,24 +1065,22 @@
     <!-- ===================== APP BODY (hidden until signed in) ===================== -->
     <div id="appBody" class="hidden">
 
-      <!-- ===================== PRIMARY MODE NAV ===================== -->
+      <!-- ===================== PRIMARY MODE NAV (teachers only) ===================== -->
       <nav class="mode-nav" id="modeNav" aria-label="Workspace mode">
-        <button class="mode-tab active" data-mode="kb"><span class="mt-emoji">📚</span> Knowledge Base</button>
-        <button class="mode-tab teacher-only" data-mode="questions"><span class="mt-emoji">❓</span> Question Bank</button>
-        <button class="mode-tab" data-mode="ask"><span class="mt-emoji">🎓</span> Ask</button>
-        <button class="mode-tab" data-mode="mark"><span class="mt-emoji">✅</span> Mark</button>
+        <button class="mode-tab active" data-mode="ask"><span class="mt-emoji">🔎</span> Ask</button>
+        <button class="mode-tab teacher-only" data-mode="kb"><span class="mt-emoji">📚</span> Library</button>
+        <button class="mode-tab teacher-only" data-mode="mark"><span class="mt-emoji">✅</span> Mark</button>
       </nav>
 
-      <!-- ===================== MODE: KNOWLEDGE BASE ===================== -->
-      <div class="mode-panel active" id="mode-kb">
+      <!-- ===================== MODE: LIBRARY (syllabus + question bank, teacher) ===================== -->
+      <div class="mode-panel" id="mode-kb">
 
-      <!-- ---------- SEARCH ---------- -->
+      <!-- ---------- VERBATIM LOOKUP (teacher utility) ---------- -->
       <section class="section animate-in" id="searchSection">
-        <h2 class="section-heading"><span class="emoji">🔎</span> Ask your vault</h2>
+        <h2 class="section-heading"><span class="emoji">🔎</span> Verbatim lookup (stored entries)</h2>
         <p class="section-desc">
-          Type a question like <em>"definition of forces"</em> or <em>"what is evaporation"</em>.
-          The AI finds the most relevant stored passages and shows them <strong>word for word</strong> —
-          the text you see is pulled straight from what you saved, with zero changes.
+          A teacher utility for checking what's stored: finds the most relevant saved passages and shows
+          them <strong>word for word</strong>. Students use the unified <strong>Ask</strong> search instead.
         </p>
 
         <div class="search-bar-wrap">
@@ -1192,12 +1223,7 @@
         <div id="sourcesOutput"></div>
       </section>
 
-      </div><!-- /mode-kb -->
-
-      <!-- ===================== MODE: QUESTION BANK (teacher) ===================== -->
-      <div class="mode-panel" id="mode-questions">
-
-        <!-- ---------- INGEST QUESTIONS (OCR) ---------- -->
+      <!-- ---------- INGEST QUESTIONS (OCR) ---------- -->
         <section class="section animate-in">
           <h2 class="section-heading"><span class="emoji">🪄</span> Ingest questions (AI OCR)</h2>
           <p class="section-desc">
@@ -1275,38 +1301,24 @@
           </div>
           <div id="qBankOutput"></div>
         </section>
-      </div><!-- /mode-questions -->
+      </div><!-- /mode-kb (Library: syllabus + question bank) -->
 
-      <!-- ===================== MODE: ASK (student help) ===================== -->
-      <div class="mode-panel" id="mode-ask">
-        <section class="section animate-in">
-          <h2 class="section-heading"><span class="emoji">🎓</span> Ask: how do I do this question?</h2>
-          <p class="section-desc">
-            Snap or upload a photo of a question (or type it). The tutor reads it, finds the matching
-            question and the relevant syllabus passages, and explains <strong>how to solve it using the
-            approved keywords</strong> — grounded only in what the teacher has stored, never invented.
-          </p>
-
-          <div class="drop-zone" id="askDropZone" tabindex="0">
-            <div class="dz-icon">📸</div>
-            <div class="dz-title">Drop / paste a photo of the question, or click to browse</div>
-            <div class="dz-sub">You can also just type the question below.</div>
-            <input type="file" id="askFileInput" accept="image/*" capture="environment" multiple class="hidden" />
+      <!-- ===================== MODE: ASK (the single unified search) ===================== -->
+      <div class="mode-panel active" id="mode-ask">
+        <section class="section animate-in" id="askSection">
+          <div class="ask-hero">
+            <h2 class="ask-title">Ask anything</h2>
+            <div class="ask-bar" id="askBar">
+              <span class="ask-bar-icon" aria-hidden="true">🔎</span>
+              <input type="text" class="ask-input" id="askText" autocomplete="off"
+                     placeholder="Ask any question, then press Enter…" />
+              <button class="ask-img-btn" id="askImageBtn" title="Add an image" aria-label="Add an image">📷</button>
+              <span class="ask-spinner inline-spinner" id="askSpinner" style="display:none;"></span>
+              <input type="file" id="askFileInput" accept="image/*" capture="environment" multiple class="hidden" />
+            </div>
+            <div class="ask-hint" id="askStatus">Type a question and press Enter, or add a photo of it.</div>
+            <div class="thumb-grid" id="askThumbGrid"></div>
           </div>
-          <div class="thumb-grid" id="askThumbGrid"></div>
-
-          <label class="label-text" for="askText" style="margin-top:var(--space-lg);">Or type the question</label>
-          <textarea class="input-area" id="askText" style="min-height:120px;"
-            placeholder="e.g. A car travels 60 km in 1.5 hours. Find its average speed."></textarea>
-
-          <div class="action-row">
-            <button class="btn btn-primary" id="askBtn">
-              <span class="spinner"></span><span class="btn-label">🎓 Show me how</span>
-            </button>
-            <button class="btn btn-ghost" id="askResetBtn">Reset</button>
-            <span class="helper-line" id="askStatus"></span>
-          </div>
-
           <div id="askOutput"></div>
         </section>
       </div><!-- /mode-ask -->
@@ -1595,15 +1607,12 @@
     });
 
     // Student "how do I do this" help — grounded, must reuse approved keywords
-    const helpSchema = Schema.object({
+    const askSchema = Schema.object({
       properties: {
-        matchedQuestionId: Schema.string({ description: "id of the stored question this matches, or empty string if none." }),
-        restated: Schema.string({ description: "One-line restatement of what the question asks." }),
-        steps: Schema.array({ items: Schema.string(), description: "Ordered steps explaining HOW to solve it, each weaving in the approved keywords where relevant." }),
-        approvedKeywordsUsed: Schema.array({ items: Schema.string(), description: "Which of the supplied approved keywords you used." }),
-        finalAnswer: Schema.string({ description: "The final answer if it can be determined from the stored material, else an empty string." }),
-        citedEntryIds: Schema.array({ items: Schema.string(), description: "ids of knowledge-base passages you relied on." }),
-        groundedNote: Schema.string({ description: "If the stored material is insufficient, say so honestly here; otherwise empty string." })
+        answer: Schema.string({ description: "A direct answer to the student's question, phrased in clear natural language tailored to exactly what they asked (not a quote)." }),
+        explanation: Schema.string({ description: "A student-friendly explanation / working that justifies the answer." }),
+        keywordsUsed: Schema.array({ items: Schema.string(), description: "The essential keywords/terms from the syllabus and question bank whose essence the answer carries." }),
+        groundedNote: Schema.string({ description: "If the stored material is insufficient to fully answer, say so honestly here; otherwise empty string." })
       }
     });
 
@@ -1909,17 +1918,14 @@
 
     // Teachers get ingestion + training; students get a read-only KB plus Ask & Mark.
     function applyRoleGating() {
+      // Students get ONE thing: the unified Ask search. The whole nav and every teacher
+      // panel are hidden, and they're parked on Ask. Teachers get the full nav.
+      const nav = $("modeNav");
+      if (nav) nav.style.display = state.isTeacher ? "" : "none";
       document.querySelectorAll(".mode-tab.teacher-only").forEach(t => {
         t.style.display = state.isTeacher ? "" : "none";
       });
-      // Hide the "Add content" section of the KB for students (they can still search/read)
-      const addSec = $("addContentSection");
-      if (addSec) addSec.style.display = state.isTeacher ? "" : "none";
-      // If a student is somehow on a teacher panel, bounce them to the KB
-      if (!state.isTeacher) {
-        const active = document.querySelector(".mode-tab.active");
-        if (active && active.classList.contains("teacher-only")) switchMode("kb");
-      }
+      if (!state.isTeacher) switchMode("ask");
     }
 
     /* =======================================================================
@@ -3202,97 +3208,110 @@
     }
 
     /* =======================================================================
-       ASK — student help, grounded, using approved keywords
+       ASK — the single unified search. Pulls keywords from the syllabus first,
+       falls back to the question bank for answers, and replies with a tailored
+       answer + explanation carrying the essence of both sources' keywords.
        ======================================================================= */
-    const TUTOR_SYSTEM = [
-      "You are a patient Singapore-syllabus tutor standing in for the teacher.",
-      "You explain HOW to approach the question, step by step.",
-      "You are STRICTLY GROUNDED: rely only on the supplied matched question, its answer key, its",
-      "approved keywords, and the knowledge-base passages provided. Do NOT invent facts, formulae or",
-      "numbers that the supplied material does not support.",
-      "You MUST weave the supplied approved keywords into your steps — this is the teacher's approved vocabulary.",
-      "Only give a final numeric/factual answer if it follows from the stored material; otherwise leave finalAnswer empty.",
-      "If the stored material is insufficient, say so honestly in 'groundedNote'."
+    const ASK_SYSTEM = [
+      "You are a friendly Singapore-syllabus tutor answering a student's question directly.",
+      "Build your answer FIRST from the SYLLABUS PASSAGES and their keywords. If the syllabus alone does",
+      "not fully answer the question, THEN use the QUESTION-BANK answers to complete it.",
+      "Your answer must carry the ESSENCE of the key terms from the syllabus and question bank, but be",
+      "phrased in clear, natural language tailored to exactly what the student asked — do not just quote.",
+      "Give a direct 'answer' and a student-friendly 'explanation'. Stay grounded in the supplied material;",
+      "if it is insufficient, answer what you can and say so honestly in 'groundedNote'. Never invent facts."
     ].join("\n");
 
-    function buildHelpContext(matched, kb) {
+    // Rank stored questions by keyword overlap (question-bank retrieval).
+    function rankQuestions(text, n = 4) {
+      if (!state.questions.length || !text) return [];
+      const terms = new Set(normalizeWS(text).split(" ").filter(t => t.length > 2));
+      if (!terms.size) return [];
+      return state.questions.map(q => {
+        const hay = new Set(normalizeWS([q.questionText, q.topic, (q.keywords || []).join(" "), (q.approvedKeywords || []).join(" ")].join(" ")).split(" ").filter(t => t.length > 2));
+        let s = 0; terms.forEach(t => { if (hay.has(t)) s++; });
+        return { q, score: s };
+      }).filter(x => x.score > 0).sort((a, b) => b.score - a.score).slice(0, n).map(x => x.q);
+    }
+
+    function buildAskContext(syllabus, questions) {
       const lines = [];
-      if (matched) {
-        lines.push("MATCHED QUESTION (id " + matched.id + "):", matched.questionText);
-        if (matched.imageDescription) lines.push("Figure: " + matched.imageDescription);
-        if (matched.answerKey) lines.push("APPROVED ANSWER KEY: " + matched.answerKey);
-        if ((matched.approvedKeywords || []).length) lines.push("APPROVED KEYWORDS (you must use these): " + matched.approvedKeywords.join(", "));
-        if ((matched.markingPoints || []).length) lines.push("MARKING POINTS: " + matched.markingPoints.map(p => "• " + p).join("  "));
+      if (syllabus.length) {
+        lines.push("SYLLABUS PASSAGES (verbatim knowledge base — use their keywords first):");
+        syllabus.forEach(e => {
+          const kw = (e.keywords || []).length ? "  [keywords: " + e.keywords.join(", ") + "]" : "";
+          lines.push("• (" + e.subject + " › " + e.topic + ") " + e.text + kw);
+        });
       } else {
-        lines.push("No stored question closely matches. Rely on the knowledge-base passages below and be honest if they are insufficient.");
+        lines.push("SYLLABUS PASSAGES: (none stored that match — note thin grounding if you cannot answer).");
       }
-      if (kb.length) {
-        lines.push("", "KNOWLEDGE-BASE PASSAGES (verbatim — cite by id):");
-        kb.forEach(e => lines.push("[" + e.id + "] (" + e.subject + " › " + e.topic + ") " + e.text));
+      lines.push("");
+      if (questions.length) {
+        lines.push("QUESTION BANK (use these answers to complete the answer if the syllabus is not enough):");
+        questions.forEach(q => {
+          lines.push("• Q: " + q.questionText);
+          if (q.answerKey) lines.push("  Answer: " + q.answerKey);
+          if ((q.approvedKeywords || []).length) lines.push("  Keywords: " + q.approvedKeywords.join(", "));
+        });
+      } else {
+        lines.push("QUESTION BANK: (no closely-matching stored questions).");
       }
       return lines.join("\n");
     }
 
+    function setAskBusy(on) {
+      const sp = $("askSpinner"); if (sp) sp.style.display = on ? "inline-block" : "none";
+      const inp = $("askText"); if (inp) inp.disabled = on;
+      const ib = $("askImageBtn"); if (ib) ib.disabled = on;
+    }
+
     async function askHelp() {
       const typed = $("askText").value.trim();
-      if (!state.askUploads.length && !typed) { toast("Upload a photo or type the question.", "err"); return; }
-      const btn = $("askBtn"); setBtnLoading(btn, true);
+      if (!state.askUploads.length && !typed) { toast("Type a question or add a photo.", "err"); return; }
       const status = $("askStatus"); const out = $("askOutput");
-      out.innerHTML = spinnerBlock("Working through it…");
+      setAskBusy(true);
+      out.innerHTML = spinnerBlock("Finding the answer…");
       try {
         let questionText = typed, imageDescription = "";
         if (state.askUploads.length) {
-          status.textContent = "Reading your question…";
+          status.textContent = "Reading your image…";
           const r = await ocrSingleQuestion(state.askUploads);
           questionText = [typed, r.questionText].filter(Boolean).join("\n").trim() || r.questionText;
           imageDescription = r.imageDescription || "";
         }
-        const matched = bestQuestionMatch(questionText);
-        const kb = rankLocally(questionText, state.entries).slice(0, 6);
-        status.textContent = "Explaining…";
+        // Unified retrieval: syllabus first, question bank as completion.
+        const syllabus = rankLocally(questionText, state.entries).slice(0, 6);
+        const questions = rankQuestions(questionText, 4);
+        status.textContent = "Answering…";
         const prompt = [
           "STUDENT'S QUESTION:", questionText,
-          imageDescription ? ("FIGURE DESCRIPTION: " + imageDescription) : "",
-          "", "STORED MATERIAL YOU MAY USE:", buildHelpContext(matched, kb)
+          imageDescription ? ("IMAGE DESCRIPTION: " + imageDescription) : "",
+          "", "REFERENCE MATERIAL:", buildAskContext(syllabus, questions)
         ].filter(Boolean).join("\n");
-        const res = await askGeminiJSON(prompt, helpSchema, { system: TUTOR_SYSTEM, temperature: 0.2 });
-        renderHelp(res, matched, questionText, kb);
-        logAttempt({ kind: "ask", questionText, matchedQuestionId: matched ? matched.id : "" });
+        const res = await askGeminiJSON(prompt, askSchema, { system: ASK_SYSTEM, temperature: 0.3 });
+        renderHelp(res);
+        status.textContent = "";
+        logAttempt({ kind: "ask", questionText, usedQuestions: questions.map(q => q.id) });
       } catch (err) {
         console.error(err); out.innerHTML = "";
-        toast("Could not help with that: " + (err.code || err.message), "err", 5000);
-      } finally { setBtnLoading(btn, false); status.textContent = ""; }
+        status.textContent = "";
+        toast("Could not answer that: " + (err.code || err.message), "err", 5000);
+      } finally { setAskBusy(false); }
     }
 
-    function renderHelp(res, matched, questionText, kb) {
+    function renderHelp(res) {
       const out = $("askOutput"); out.innerHTML = "";
       const panel = el("div", "result-panel");
-      panel.appendChild(el("div", "result-head", `<span>🎓 How to do it${matched ? " · matched a question in the bank" : ""}</span>`));
+      panel.appendChild(el("div", "result-head", `<span>💡 Answer</span>`));
       const body = el("div", "result-body");
-      const steps = (res.steps || []).map(s => `<li>${escapeHTML(s)}</li>`).join("");
-      const kwUsed = (res.approvedKeywordsUsed || []);
-      const cited = (res.citedEntryIds || []).map(id => state.entries.find(e => e.id === id)).filter(Boolean);
+      const kwUsed = (res.keywordsUsed || []);
       body.innerHTML = `
-        ${res.restated ? `<p class="approach-text"><strong>What it's asking:</strong> ${escapeHTML(res.restated)}</p>` : ""}
-        <div class="block-label">🪜 Method</div>
-        <ol class="step-list">${steps || "<li>(no steps returned)</li>"}</ol>
-        ${kwUsed.length ? `<div class="block-label">✅ Using approved keywords</div><div class="kw-approved-row">${kwUsed.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
-        ${res.finalAnswer ? `<div class="block-label">🎯 Answer</div><div class="answer-block">${escapeHTML(res.finalAnswer)}</div>` : ""}
+        <p class="approach-text">${escapeHTML(res.answer || "")}</p>
+        ${res.explanation ? `<div class="block-label">🧭 Explanation</div><p class="approach-text">${escapeHTML(res.explanation)}</p>` : ""}
+        ${kwUsed.length ? `<div class="block-label">🔑 Key ideas used</div><div class="kw-approved-row">${kwUsed.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
         ${res.groundedNote ? `<div class="ai-note" style="margin-top:var(--space-md);"><span class="ai-note-label">⚠ Note</span>${escapeHTML(res.groundedNote)}</div>` : ""}
       `;
       panel.appendChild(body); out.appendChild(panel);
-      if (matched) { out.appendChild(el("div", "block-label", "📌 Matched question in the bank")); out.appendChild(renderQuestionCard(matched)); }
-      if (cited.length) {
-        out.appendChild(el("div", "block-label", "📚 From your knowledge base (verbatim)"));
-        const list = el("div", "results-list");
-        cited.forEach(e => list.appendChild(renderEntryCard(e, { highlight: questionText })));
-        out.appendChild(list);
-      }
-    }
-
-    function resetAsk() {
-      state.askUploads = []; renderThumbGrid("askThumbGrid", state.askUploads);
-      $("askText").value = ""; $("askOutput").innerHTML = ""; $("askStatus").textContent = "";
     }
 
     /* =======================================================================
@@ -3412,9 +3431,9 @@
       $("markOutput").innerHTML = ""; $("markStatus").textContent = "";
     }
 
-    /* ---------- WIRING for the new modes ---------- */
+    /* ---------- WIRING ---------- */
+    // Library (teacher): question-ingest + mark drop-zones
     setupImageDrop("qDropZone", "qFileInput", () => state.qUploads, "qThumbGrid", { allowPdf: true, statusId: "qStatus" });
-    setupImageDrop("askDropZone", "askFileInput", () => state.askUploads, "askThumbGrid", {});
     setupImageDrop("markQDropZone", "markQFileInput", () => state.markQUploads, "markQThumbGrid", {});
     setupImageDrop("markADropZone", "markAFileInput", () => state.markAUploads, "markAThumbGrid", {});
 
@@ -3425,29 +3444,47 @@
     let qQuickTimer = null;
     $("qQuickFilter").addEventListener("input", () => { clearTimeout(qQuickTimer); qQuickTimer = setTimeout(renderQuestionBank, 180); });
 
-    $("askBtn").addEventListener("click", askHelp);
-    $("askResetBtn").addEventListener("click", resetAsk);
+    // Ask: the single search bar — Enter to ask, 📷 / drag / paste to add an image
+    async function ingestAskImages(fileList) {
+      const files = [...fileList].filter(f => f.type.startsWith("image/"));
+      if (!files.length) { toast("Add an image file.", "err"); return; }
+      const status = $("askStatus");
+      try {
+        if (status) status.textContent = "Loading image…";
+        const parts = await filesToImageParts(files, (m) => { if (status) status.textContent = m; });
+        state.askUploads.push(...parts);
+        renderThumbGrid("askThumbGrid", state.askUploads);
+        if (status) status.textContent = "Image added — press Enter to ask.";
+      } catch (err) { console.error(err); toast("Could not read that image.", "err"); }
+    }
+    $("askImageBtn").addEventListener("click", () => $("askFileInput").click());
+    $("askFileInput").addEventListener("change", () => { ingestAskImages($("askFileInput").files); $("askFileInput").value = ""; });
+    $("askText").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); askHelp(); } });
+    const askBar = $("askBar");
+    askBar.addEventListener("dragover", (e) => { e.preventDefault(); askBar.classList.add("dragover"); });
+    askBar.addEventListener("dragleave", () => askBar.classList.remove("dragover"));
+    askBar.addEventListener("drop", (e) => { e.preventDefault(); askBar.classList.remove("dragover"); ingestAskImages(e.dataTransfer.files); });
 
     $("markBtn").addEventListener("click", markAnswer);
     $("markResetBtn").addEventListener("click", resetMark);
 
-    // Paste images/PDFs into whichever interactive mode is active
+    // Paste an image into the active mode (Ask → the search; Library → question ingest; Mark → answer).
     window.addEventListener("paste", (e) => {
       const mode = state._activeMode;
-      let buffer = null, gridId = null, allowPdf = false, statusId = null;
-      if (mode === "questions") { buffer = state.qUploads; gridId = "qThumbGrid"; allowPdf = true; statusId = "qStatus"; }
-      else if (mode === "ask") { buffer = state.askUploads; gridId = "askThumbGrid"; }
+      let buffer = null, gridId = null, statusId = null;
+      if (mode === "ask") { buffer = state.askUploads; gridId = "askThumbGrid"; statusId = "askStatus"; }
+      else if (mode === "kb") { buffer = state.qUploads; gridId = "qThumbGrid"; statusId = "qStatus"; }
       else if (mode === "mark") { buffer = state.markAUploads; gridId = "markAThumbGrid"; }
       else return;
-      const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/") || (allowPdf && f.type === "application/pdf"));
+      const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"));
       if (!files.length) return;
       e.preventDefault();
       filesToImageParts(files, (m) => { if (statusId && $(statusId)) $(statusId).textContent = m; })
         .then(parts => { buffer.push(...parts); renderThumbGrid(gridId, buffer); if (statusId && $(statusId)) $(statusId).textContent = parts.length + " added."; })
-        .catch(err => { console.error(err); toast("Could not read pasted file.", "err"); });
+        .catch(err => { console.error(err); toast("Could not read pasted image.", "err"); });
     });
 
-    state._activeMode = "kb";
+    state._activeMode = "ask";
 
     updateCounters();
     console.log("[Polymath WordVault] ready · model:", GEMINI_MODEL, "· teaching-system extensions loaded");
