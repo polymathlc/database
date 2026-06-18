@@ -1070,6 +1070,59 @@
     #mode-ask .thumb-grid { max-width: 720px; margin-left: auto; margin-right: auto; }
     #mode-ask #askOutput { max-width: 760px; margin: 0 auto; }
     #mode-ask .result-panel { text-align: left; }
+
+    /* =========================================================================
+       22. FLASHCARDS  (spaced-repetition deck — student study tool)
+       ========================================================================= */
+    .flash-stats { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
+    .flash-stat {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 10px 16px; border-radius: var(--radius-md);
+      background: var(--bg-secondary); border: 1px solid var(--border-subtle); min-width: 78px;
+    }
+    .flash-stat .fs-num { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .flash-stat .fs-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; }
+    .flash-stat.due .fs-num { color: var(--accent-dark); }
+
+    .flash-add { margin-top: var(--space-md); padding: var(--space-md); border: 1px solid var(--border-medium); border-radius: var(--radius-lg); background: var(--bg-secondary); }
+
+    .flash-card-row {
+      display: flex; align-items: flex-start; gap: var(--space-md);
+      padding: var(--space-md); margin-top: var(--space-sm);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--bg-primary);
+    }
+    .flash-card-row .fc-main { flex: 1; min-width: 0; }
+    .flash-card-row .fc-front { font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
+    .flash-card-row .fc-back { font-size: var(--font-size-sm); color: var(--text-secondary); }
+    .flash-card-row .fc-meta { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: var(--font-size-xs); color: var(--text-tertiary); }
+    .flash-card-row .fc-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .fc-due-badge { font-weight: 700; }
+    .fc-due-badge.now { color: var(--accent-dark); }
+
+    /* Memory-strength bar (retrievability from the forgetting curve) */
+    .mem-bar { width: 70px; height: 6px; border-radius: var(--radius-full); background: var(--bg-tertiary); overflow: hidden; }
+    .mem-bar > span { display: block; height: 100%; border-radius: var(--radius-full); background: linear-gradient(90deg, #E53935, #FB8C00, #43A047); }
+
+    /* Practice */
+    .flash-practice { margin-top: var(--space-md); }
+    .fp-progress { font-size: var(--font-size-sm); color: var(--text-tertiary); margin-bottom: var(--space-sm); text-align: center; }
+    .fp-card {
+      border: 2px solid var(--accent-light); border-radius: var(--radius-lg);
+      padding: var(--space-xl) var(--space-lg); background: var(--bg-primary);
+      min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-md); text-align: center;
+    }
+    .fp-side-label { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); }
+    .fp-front { font-size: var(--font-size-lg); font-weight: 700; color: var(--text-primary); }
+    .fp-back { font-size: var(--font-size-md); color: var(--text-primary); border-top: 1px dashed var(--border-medium); padding-top: var(--space-md); width: 100%; }
+    .fp-grade-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); justify-content: center; margin-top: var(--space-md); }
+    .fp-grade { flex: 1 1 0; min-width: 86px; max-width: 150px; }
+    .fp-grade .fg-sub { display: block; font-size: var(--font-size-xs); font-weight: 400; opacity: 0.8; }
+    .btn.fg-again  { background: #FFEBEE; color: #C62828; border: 1px solid #FFCDD2; }
+    .btn.fg-hard   { background: #FFF3E0; color: #B26A00; border: 1px solid #FFE0B2; }
+    .btn.fg-good   { background: var(--accent-light); color: var(--text-primary); }
+    .btn.fg-easy   { background: #E8F5E9; color: #2E7D32; border: 1px solid #C8E6C9; }
+    .fp-empty { text-align: center; padding: var(--space-xl); color: var(--text-secondary); }
+    .fp-empty .fe-emoji { font-size: 2.6rem; }
   </style>
 </head>
 <body>
@@ -1121,6 +1174,7 @@
       <!-- ===================== PRIMARY MODE NAV (teachers only) ===================== -->
       <nav class="mode-nav" id="modeNav" aria-label="Workspace mode">
         <button class="mode-tab active" data-mode="ask"><span class="mt-emoji">🔎</span> Ask</button>
+        <button class="mode-tab" data-mode="flashcards"><span class="mt-emoji">🗂️</span> Flashcards</button>
         <button class="mode-tab teacher-only" data-mode="kb"><span class="mt-emoji">📚</span> Library</button>
         <button class="mode-tab teacher-only" data-mode="mark"><span class="mt-emoji">✅</span> Mark</button>
         <button class="mode-tab teacher-only" data-mode="mistakes"><span class="mt-emoji">🚩</span> Mistakes</button>
@@ -1514,6 +1568,54 @@
         </section>
       </div><!-- /mode-mistakes -->
 
+      <!-- ===================== MODE: FLASHCARDS (every user's private deck) ===================== -->
+      <div class="mode-panel" id="mode-flashcards">
+        <section class="section animate-in">
+          <h2 class="section-heading"><span class="emoji">🗂️</span> My flashcards</h2>
+          <p class="section-desc">
+            Save what you learn as short cards, then <strong>practise</strong> them. Cards come back to you
+            using <strong>spaced repetition</strong> — they are shown just as the
+            <strong>forgetting curve</strong> says your memory of them is fading, so you revise at the most
+            useful moment. Add a card straight from an <strong>Ask</strong> answer (🗂️ Save as flashcard) or
+            write your own below.
+          </p>
+
+          <div class="flash-stats" id="flashStats"></div>
+
+          <div class="action-row" id="flashControls" style="margin-top:var(--space-md);">
+            <button class="btn btn-primary" id="practiceBtn">▶ Practise</button>
+            <button class="btn btn-secondary" id="addCardToggleBtn">➕ Add a card</button>
+            <input type="text" class="text-input" id="flashQuickFilter" placeholder="Filter cards…" style="flex:1 1 160px;max-width:260px;" data-noai />
+          </div>
+
+          <!-- Manual add form (hidden until "Add a card") -->
+          <div class="flash-add hidden" id="flashAddForm">
+            <div class="field-row" style="margin-top:0;">
+              <div class="field" style="flex:1 1 100%;">
+                <label for="flashFront">Front (the prompt / question)</label>
+                <textarea class="input-area" id="flashFront" style="min-height:70px;" placeholder="e.g. What is frictional force?"></textarea>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field" style="flex:1 1 100%;">
+                <label for="flashBack">Back (the answer)</label>
+                <textarea class="input-area" id="flashBack" style="min-height:90px;" placeholder="e.g. The force that opposes motion between two surfaces in contact."></textarea>
+              </div>
+            </div>
+            <div class="action-row" style="margin-top:var(--space-sm);">
+              <button class="btn btn-primary btn-sm" id="flashSaveBtn"><span class="spinner"></span><span class="btn-label">💾 Save card</span></button>
+              <button class="btn btn-ghost btn-sm" id="flashCancelBtn">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Practice view (hidden until practising) -->
+          <div class="flash-practice hidden" id="flashPractice"></div>
+
+          <!-- The deck -->
+          <div id="flashList"></div>
+        </section>
+      </div><!-- /mode-flashcards -->
+
     </div><!-- /appBody -->
   </main>
 
@@ -1583,6 +1685,7 @@
     const QUESTIONS_COLLECTION = "wordvault_questions";
     const ATTEMPTS_COLLECTION  = "wordvault_attempts";   // marking history
     const MISTAKES_COLLECTION  = "wordvault_mistakes";   // teacher's bank of marked student mistakes
+    const FLASHCARDS_COLLECTION = "wordvault_flashcards"; // each user's private spaced-repetition deck
 
     const ENTRY_TYPES = [
       "definition", "concept", "example", "formula", "fact",
@@ -1788,6 +1891,23 @@
       }
     });
 
+    // Condense an Ask answer into a short, study-ready flashcard (front question + back answer).
+    const FLASHCARD_SYSTEM = [
+      "You turn a question and its answer into ONE short study flashcard for a school student.",
+      "Return 'front' as a brief prompt — usually a 'What is…/Define…/State…' style question (≤ 12 words).",
+      "Return 'back' as the shortest correct answer that still captures the key idea (≤ 25 words, ideally one",
+      "sentence or a crisp definition). Keep subject terms accurate; do not add fluff, examples or working.",
+      "Plain text only — no markdown, bullet points or labels. Also give a one-word 'subject' and short 'topic'."
+    ].join("\n");
+    const flashcardSchema = Schema.object({
+      properties: {
+        front: Schema.string({ description: "Short prompt/question for the front of the card (≤ 12 words)." }),
+        back: Schema.string({ description: "Shortest answer/definition that captures the key idea (≤ 25 words)." }),
+        subject: Schema.string({ description: "One of: Science, Math, Geometry, General, Assessment." }),
+        topic: Schema.string({ description: "A concise topic name, e.g. Forces, Fractions." })
+      }
+    });
+
     /* =======================================================================
        STATE
        ======================================================================= */
@@ -1808,7 +1928,10 @@
       markQUploads: [],
       markAUploads: [],
       mkQUploads: [],       // Mistakes tab — question image(s)
-      mkAUploads: []        // Mistakes tab — student's (wrong) answer image(s)
+      mkAUploads: [],       // Mistakes tab — student's (wrong) answer image(s)
+      flashcards: [],       // {id, front, back, subject, topic, source, ef, reps, intervalDays, dueAtMs, lastReviewedMs, lapses, createdAtMs}
+      _practice: null,      // active practice session {queue, idx, total, again, revealed}
+      _lastAsk: null        // last Ask {questionText, answer, explanation} — for "save as flashcard"
     };
 
     /* =======================================================================
@@ -2079,10 +2202,10 @@
 
     // Teachers get ingestion + training; students get a read-only KB plus Ask & Mark.
     function applyRoleGating() {
-      // Students get ONE thing: the unified Ask search. The whole nav and every teacher
-      // panel are hidden, and they're parked on Ask. Teachers get the full nav.
+      // Students get the unified Ask search plus their own Flashcards; every teacher-only
+      // panel is hidden and they're parked on Ask. Teachers get the full nav.
       const nav = $("modeNav");
-      if (nav) nav.style.display = state.isTeacher ? "" : "none";
+      if (nav) nav.style.display = "";   // nav is shown for everyone (students: Ask + Flashcards)
       document.querySelectorAll(".mode-tab.teacher-only").forEach(t => {
         t.style.display = state.isTeacher ? "" : "none";
       });
@@ -2094,7 +2217,7 @@
        ======================================================================= */
     async function loadAll() {
       try {
-        await Promise.all([loadSources(), loadEntries(), loadQuestions(), loadMistakes()]);
+        await Promise.all([loadSources(), loadEntries(), loadQuestions(), loadMistakes(), loadFlashcards()]);
         if (state.isTeacher) await backfillOwnerEmail();
         renderEverything();
       } catch (err) {
@@ -3035,6 +3158,7 @@
       rebuildQuestionSelectors();
       renderMistakeBank();
       rebuildMistakeSelectors();
+      renderFlashcards();
     }
 
     /* =======================================================================
@@ -3645,6 +3769,7 @@
           "", "REFERENCE MATERIAL:", buildAskContext(syllabus, questions)
         ].filter(Boolean).join("\n");
         const res = await askGeminiJSON(prompt, askSchema, { system: ASK_SYSTEM, temperature: 0.3 });
+        state._lastAsk = { questionText, answer: res.answer || "", explanation: res.explanation || "" };
         renderHelp(res);
         status.textContent = "";
         logAttempt({ kind: "ask", questionText, usedQuestions: questions.map(q => q.id) });
@@ -3667,6 +3792,15 @@
         ${kwUsed.length ? `<div class="block-label">🔑 Key ideas used</div><div class="kw-approved-row">${kwUsed.map(k => `<span class="badge kw-approved">${escapeHTML(k)}</span>`).join("")}</div>` : ""}
         ${res.groundedNote ? `<div class="ai-note" style="margin-top:var(--space-md);"><span class="ai-note-label">⚠ Note</span>${escapeHTML(res.groundedNote)}</div>` : ""}
       `;
+      // Anyone can turn a good answer into a short, spaced-repetition flashcard.
+      if ((res.answer || "").trim()) {
+        const actions = el("div", "action-row");
+        actions.style.marginTop = "var(--space-md)";
+        actions.innerHTML = `<button class="btn btn-secondary btn-sm" id="askFlashBtn"><span class="spinner"></span><span class="btn-label">🗂️ Save as flashcard</span></button>`;
+        body.appendChild(actions);
+        const fb = actions.querySelector("#askFlashBtn");
+        if (fb) fb.addEventListener("click", () => createFlashcardFromAsk(fb));
+      }
       panel.appendChild(body); out.appendChild(panel);
     }
 
@@ -4317,6 +4451,332 @@
       }).observe(document.body, { childList: true, subtree: true });
     }
 
+    /* =======================================================================
+       FLASHCARDS — a private, spaced-repetition study deck for every user.
+       Scheduling uses SM-2 (the well-researched SuperMemo / Anki method); WHICH
+       cards to surface is driven by the Ebbinghaus FORGETTING CURVE: a card's
+       retrievability R = exp(-elapsed / stability) decays over time, and we
+       resurface it once it falls due (most-decayed first) — i.e. right when you
+       are about to forget it. Each user's deck is private (owner == uid).
+       ======================================================================= */
+    const DAY_MS = 86400000;
+
+    // ---- persistence (owner-scoped, mirrors the rest of the data layer) ----
+    async function loadFlashcards() {
+      try {
+        if (!state.user) { state.flashcards = []; return; }
+        const q = query(collection(db, FLASHCARDS_COLLECTION), where("owner", "==", state.user.uid));
+        const snap = await getDocs(q);
+        state.flashcards = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      } catch (err) {
+        console.warn("loadFlashcards failed (continuing):", err);
+        state.flashcards = [];
+      }
+    }
+
+    async function saveFlashcard(card) {
+      const ref = doc(collection(db, FLASHCARDS_COLLECTION));
+      const now = Date.now();
+      const data = {
+        owner: state.user.uid,
+        ownerEmail: (state.user.email || "").toLowerCase(),
+        createdAtMs: now,
+        front: (card.front || "").trim(),
+        back: (card.back || "").trim(),
+        subject: card.subject || "General",
+        topic: card.topic || "Uncategorised",
+        source: card.source || "manual",
+        // SM-2 scheduling state — a brand-new card is due immediately
+        ef: 2.5, reps: 0, intervalDays: 0, dueAtMs: now, lastReviewedMs: 0, lapses: 0
+      };
+      await setDoc(ref, data);
+      state.flashcards.unshift({ id: ref.id, ...data });
+      return ref.id;
+    }
+
+    async function updateFlashcard(id, patch) {
+      await setDoc(doc(db, FLASHCARDS_COLLECTION, id), patch, { merge: true });
+      const c = state.flashcards.find(x => x.id === id);
+      if (c) Object.assign(c, patch);
+    }
+
+    async function deleteFlashcardById(id) {
+      await deleteDoc(doc(db, FLASHCARDS_COLLECTION, id));
+      state.flashcards = state.flashcards.filter(x => x.id !== id);
+    }
+
+    // ---- forgetting curve + SM-2 scheduling ----
+    // Retrievability: chance the card is still recallable now (1 = fresh, → 0 = forgotten).
+    function retrievability(card, now = Date.now()) {
+      if (!card.lastReviewedMs) return 0;                          // never studied → fully due
+      const stability = Math.max(card.intervalDays || 1, 0.3);     // memory half-life ≈ last interval (days)
+      const elapsedDays = (now - card.lastReviewedMs) / DAY_MS;
+      return Math.exp(-elapsedDays / stability);
+    }
+
+    // Cards due now, most-decayed first — the forgetting-curve ordering.
+    function dueFlashcards(now = Date.now()) {
+      return state.flashcards
+        .filter(c => (c.dueAtMs || 0) <= now)
+        .map(c => ({ c, r: retrievability(c, now) }))
+        .sort((a, b) => a.r - b.r)
+        .map(x => x.c);
+    }
+
+    // Apply one review outcome (SM-2). quality: 2 Again · 3 Hard · 4 Good · 5 Easy.
+    function scheduleReview(card, quality) {
+      const now = Date.now();
+      let ef = card.ef || 2.5, reps = card.reps || 0, interval = card.intervalDays || 0;
+      if (quality < 3) {
+        reps = 0; interval = 0;                                    // lapse → relearn very soon
+        card.lapses = (card.lapses || 0) + 1;
+      } else {
+        if (reps === 0) interval = 1;
+        else if (reps === 1) interval = 6;
+        else interval = Math.round(interval * ef);
+        if (quality === 3) interval = Math.max(1, Math.round(interval * 0.8));  // "Hard" → shorter step
+        reps += 1;
+      }
+      ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+      if (ef < 1.3) ef = 1.3;
+      const patch = {
+        ef, reps, intervalDays: interval, lastReviewedMs: now,
+        dueAtMs: now + (interval > 0 ? interval * DAY_MS : 60 * 1000)   // lapses come back almost immediately
+      };
+      Object.assign(card, patch);
+      return patch;
+    }
+
+    function humanDue(card, now = Date.now()) {
+      const ms = (card.dueAtMs || 0) - now;
+      if (ms <= 0) return { text: "due now", now: true };
+      const days = ms / DAY_MS;
+      if (days < 1) return { text: "due in <1 d", now: false };
+      if (days < 1.5) return { text: "due tomorrow", now: false };
+      return { text: "due in " + Math.round(days) + " d", now: false };
+    }
+
+    // Non-mutating peek at the next interval, for the grade-button hints.
+    function previewInterval(card, quality) {
+      const tmp = { ef: card.ef, reps: card.reps, intervalDays: card.intervalDays, lapses: card.lapses };
+      scheduleReview(tmp, quality);
+      const d = tmp.intervalDays;
+      if (d <= 0) return "<10 min";
+      if (d === 1) return "1 day";
+      if (d < 30) return d + " days";
+      const months = d / 30;
+      return months < 12 ? Math.round(months) + " mo" : Math.round(months / 12) + " yr";
+    }
+
+    // ---- create a card from an Ask answer, or from the manual form ----
+    async function createFlashcardFromAsk(btn) {
+      const a = state._lastAsk;
+      if (!a || !(a.questionText || a.answer)) { toast("Ask something first, then save it as a card.", "info"); return; }
+      setBtnLoading(btn, true);
+      let saved = false;
+      try {
+        const prompt = [
+          "QUESTION:", a.questionText || "(asked from an image)",
+          "", "ANSWER:", a.answer || "",
+          a.explanation ? ("\nEXPLANATION:\n" + a.explanation) : ""
+        ].join("\n");
+        let fc;
+        try {
+          fc = await askGeminiJSON(prompt, flashcardSchema, { system: FLASHCARD_SYSTEM, temperature: 0.2 });
+        } catch (e) {
+          console.warn("flashcard condense failed — saving a simple card:", e);
+          fc = { front: a.questionText || "Review", back: a.answer || "", subject: "General", topic: "Uncategorised" };
+        }
+        await saveFlashcard({ ...fc, source: "ask" });
+        saved = true;
+        toast("Saved to your flashcards ✓", "ok");
+        renderFlashcards();
+      } catch (err) {
+        console.error(err);
+        toast(err && err.message ? err.message : "Could not save the flashcard.", "err", 5000);
+      } finally {
+        setBtnLoading(btn, false);
+        if (saved && btn) { btn.disabled = true; const lbl = btn.querySelector(".btn-label"); if (lbl) lbl.textContent = "✓ Saved to flashcards"; }
+      }
+    }
+
+    function openFlashForm(card) {
+      state._editFlashId = card ? card.id : null;
+      $("flashFront").value = card ? card.front : "";
+      $("flashBack").value = card ? card.back : "";
+      const lbl = $("flashSaveBtn").querySelector(".btn-label"); if (lbl) lbl.textContent = card ? "💾 Update card" : "💾 Save card";
+      $("flashAddForm").classList.remove("hidden");
+      $("flashFront").focus();
+    }
+    function closeFlashForm() {
+      state._editFlashId = null;
+      $("flashFront").value = ""; $("flashBack").value = "";
+      $("flashAddForm").classList.add("hidden");
+    }
+    async function saveFlashFormCard() {
+      const btn = $("flashSaveBtn");
+      const front = $("flashFront").value.trim();
+      const back = $("flashBack").value.trim();
+      if (!front || !back) { toast("Fill in both the front and the back of the card.", "err"); return; }
+      setBtnLoading(btn, true);
+      try {
+        if (state._editFlashId) {
+          await updateFlashcard(state._editFlashId, { front, back });
+          toast("Flashcard updated ✓", "ok");
+        } else {
+          await saveFlashcard({ front, back, source: "manual" });
+          toast("Flashcard added ✓", "ok");
+        }
+        closeFlashForm();
+        renderFlashcards();
+      } catch (err) {
+        console.error(err);
+        toast(err && err.message ? err.message : "Could not save the card.", "err", 5000);
+      } finally { setBtnLoading(btn, false); }
+    }
+
+    // ---- rendering: stats + deck list ----
+    function renderFlashStats() {
+      const host = $("flashStats"); if (!host) return;
+      const total = state.flashcards.length;
+      const due = dueFlashcards().length;
+      const learned = state.flashcards.filter(c => (c.reps || 0) >= 2).length;
+      const avgMem = total ? Math.round(100 * state.flashcards.reduce((s, c) => s + retrievability(c), 0) / total) : 0;
+      host.innerHTML = [
+        `<div class="flash-stat"><span class="fs-num">${total}</span><span class="fs-label">Cards</span></div>`,
+        `<div class="flash-stat due"><span class="fs-num">${due}</span><span class="fs-label">Due now</span></div>`,
+        `<div class="flash-stat"><span class="fs-num">${learned}</span><span class="fs-label">Learned</span></div>`,
+        `<div class="flash-stat"><span class="fs-num">${avgMem}%</span><span class="fs-label">Avg memory</span></div>`
+      ].join("");
+      const pBtn = $("practiceBtn");
+      if (pBtn) pBtn.textContent = due ? `▶ Practise (${due} due)` : "▶ Practise";
+    }
+
+    function renderFlashcards() {
+      renderFlashStats();
+      const list = $("flashList"); if (!list) return;
+      if (!state.flashcards.length) {
+        list.innerHTML = `<div class="fp-empty"><div class="fe-emoji">🗂️</div><p>No flashcards yet. Ask a question and tap <strong>🗂️ Save as flashcard</strong>, or add one above.</p></div>`;
+        return;
+      }
+      const filter = rxNorm(($("flashQuickFilter") && $("flashQuickFilter").value) || "");
+      let cards = state.flashcards.slice().sort((a, b) => (a.dueAtMs || 0) - (b.dueAtMs || 0));
+      if (filter) cards = cards.filter(c => rxNorm([c.front, c.back, c.topic, c.subject].join(" ")).indexOf(filter) !== -1);
+      if (!cards.length) { list.innerHTML = `<p class="section-desc" style="margin-top:var(--space-md);">No cards match that filter.</p>`; return; }
+      list.innerHTML = "";
+      const now = Date.now();
+      cards.forEach(c => {
+        const due = humanDue(c, now);
+        const mem = Math.round(retrievability(c, now) * 100);
+        const row = el("div", "flash-card-row");
+        row.innerHTML = `
+          <div class="fc-main">
+            <div class="fc-front">${escapeHTML(c.front)}</div>
+            <div class="fc-back">${escapeHTML(c.back)}</div>
+            <div class="fc-meta">
+              <span class="fc-due-badge ${due.now ? "now" : ""}">${due.text}</span>
+              <span title="How well you'd recall this right now (forgetting curve)">memory</span>
+              <span class="mem-bar"><span style="width:${mem}%;"></span></span>
+              ${c.topic ? `<span>· ${escapeHTML(c.topic)}</span>` : ""}
+            </div>
+          </div>
+          <div class="fc-actions">
+            <button class="mini-btn" data-act="edit" title="Edit card">✏️</button>
+            <button class="mini-btn" data-act="del" title="Delete card">🗑️</button>
+          </div>`;
+        row.querySelector('[data-act="edit"]').addEventListener("click", () => {
+          openFlashForm(c); $("flashAddForm").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        row.querySelector('[data-act="del"]').addEventListener("click", async () => {
+          const ok = await confirmDialog("Delete this flashcard?", c.front, "Delete");
+          if (!ok) return;
+          try { await deleteFlashcardById(c.id); renderFlashcards(); toast("Flashcard deleted.", "ok"); }
+          catch (err) { console.error(err); toast("Could not delete: " + (err.code || err.message), "err"); }
+        });
+        list.appendChild(row);
+      });
+    }
+
+    // ---- practice session (driven by the memory curve) ----
+    function startPractice() {
+      let queue = dueFlashcards();
+      let studyAhead = false;
+      if (!queue.length) {
+        if (!state.flashcards.length) { toast("Add some flashcards first.", "info"); return; }
+        queue = state.flashcards.slice().sort((a, b) => (a.dueAtMs || 0) - (b.dueAtMs || 0)).slice(0, 10);
+        studyAhead = true;
+        toast("Nothing's due yet — studying ahead with your next cards.", "info");
+      }
+      state._practice = { queue, idx: 0, revealed: false, reviewed: 0, studyAhead };
+      closeFlashForm();
+      $("flashControls").classList.add("hidden");
+      $("flashList").classList.add("hidden");
+      $("flashPractice").classList.remove("hidden");
+      renderPractice();
+    }
+
+    function renderPractice() {
+      const p = state._practice; const host = $("flashPractice");
+      if (!p || !host) return;
+      if (p.idx >= p.queue.length) { renderPracticeDone(); return; }
+      const c = p.queue[p.idx];
+      host.innerHTML = `
+        <div class="fp-progress">Card ${p.idx + 1} of ${p.queue.length}${p.studyAhead ? " · studying ahead" : ""}</div>
+        <div class="fp-card">
+          <div class="fp-side-label">Front</div>
+          <div class="fp-front">${escapeHTML(c.front)}</div>
+          ${p.revealed ? `<div class="fp-back"><div class="fp-side-label" style="margin-bottom:6px;">Back</div>${escapeHTML(c.back)}</div>` : ""}
+        </div>
+        <div class="fp-grade-row" id="fpControls"></div>
+        <div style="text-align:center;margin-top:var(--space-md);"><button class="btn btn-ghost btn-sm" id="fpQuit">Finish session</button></div>`;
+      const controls = host.querySelector("#fpControls");
+      if (!p.revealed) {
+        const b = el("button", "btn btn-primary", "Show answer");
+        b.addEventListener("click", () => { p.revealed = true; renderPractice(); });
+        controls.appendChild(b);
+      } else {
+        [["Again", "fg-again", 2], ["Hard", "fg-hard", 3], ["Good", "fg-good", 4], ["Easy", "fg-easy", 5]].forEach(([label, cls, q]) => {
+          const b = el("button", "btn fp-grade " + cls, `${label}<span class="fg-sub">${previewInterval(c, q)}</span>`);
+          b.addEventListener("click", () => gradeCurrent(q));
+          controls.appendChild(b);
+        });
+      }
+      host.querySelector("#fpQuit").addEventListener("click", endPractice);
+    }
+
+    function gradeCurrent(quality) {
+      const p = state._practice; if (!p) return;
+      const c = p.queue[p.idx];
+      const patch = scheduleReview(c, quality);
+      p.reviewed += 1;
+      updateFlashcard(c.id, patch).catch(err => console.warn("flashcard save failed (non-fatal):", err));
+      if (quality < 3) p.queue.push(c);   // a lapsed card returns later this session
+      p.idx += 1; p.revealed = false;
+      renderPractice();
+    }
+
+    function renderPracticeDone() {
+      const p = state._practice; const host = $("flashPractice");
+      const n = p ? p.reviewed : 0;
+      host.innerHTML = `
+        <div class="fp-empty">
+          <div class="fe-emoji">🎉</div>
+          <p><strong>Session complete!</strong> You reviewed ${n} card${n === 1 ? "" : "s"}. They'll come back when the forgetting curve says you need them.</p>
+          <div class="action-row" style="justify-content:center;"><button class="btn btn-primary" id="fpDone">Back to my deck</button></div>
+        </div>`;
+      host.querySelector("#fpDone").addEventListener("click", endPractice);
+    }
+
+    function endPractice() {
+      state._practice = null;
+      $("flashPractice").classList.add("hidden");
+      $("flashPractice").innerHTML = "";
+      $("flashControls").classList.remove("hidden");
+      $("flashList").classList.remove("hidden");
+      renderFlashcards();
+    }
+
     /* ---------- WIRING ---------- */
     // Library (teacher): question-ingest + mark drop-zones
     setupImageDrop("qDropZone", "qFileInput", () => state.qUploads, "qThumbGrid", { allowPdf: true, statusId: "qStatus" });
@@ -4381,6 +4841,19 @@
         .then(parts => { buffer.push(...parts); renderThumbGrid(gridId, buffer); if (statusId && $(statusId)) $(statusId).textContent = parts.length + " added."; })
         .catch(err => { console.error(err); toast("Could not read pasted image.", "err"); });
     });
+
+    // Flashcards (every user): practise, add/edit, filter
+    $("practiceBtn").addEventListener("click", startPractice);
+    $("addCardToggleBtn").addEventListener("click", () => {
+      if ($("flashAddForm").classList.contains("hidden")) openFlashForm(null);
+      else closeFlashForm();
+    });
+    $("flashSaveBtn").addEventListener("click", saveFlashFormCard);
+    $("flashCancelBtn").addEventListener("click", closeFlashForm);
+    let flashFilterTimer = null;
+    $("flashQuickFilter").addEventListener("input", () => { clearTimeout(flashFilterTimer); flashFilterTimer = setTimeout(renderFlashcards, 180); });
+    const _flashTab = document.querySelector('.mode-tab[data-mode="flashcards"]');
+    if (_flashTab) _flashTab.addEventListener("click", () => { if (!state._practice) renderFlashcards(); });
 
     state._activeMode = "ask";
 
