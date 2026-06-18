@@ -187,6 +187,12 @@ AI Logic / Gemini stack the rest of the app already runs on.
 - OCR/answer quality depends on image clarity and on how much syllabus material you've
   loaded. The tutor is deliberately **grounded** — if it lacks the material it says so
   rather than inventing an answer.
+- **Finding stored material is fuzzy and forgiving.** Retrieval (Ask, Mark and the
+  question/mistake banks) matches on word **forms and misspellings**, not exact text — so a
+  saved *“frictional force”* note is still found by *“friction”*, *“explain friction”* or even
+  the typo *“fictional force”*. It cascades through phrase → word → character‑trigram
+  signals and hands the closest candidates to Gemini to judge, so relevant notes are no
+  longer missed because the wording differed.
 - PDF ingestion is capped at 40 pages per file and processed in small page‑chunks.
 - The model is configured in `GEMINI_MODEL`.
 </content>
