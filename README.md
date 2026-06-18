@@ -44,7 +44,8 @@ it holds individual students' wrong answers and is loaded only for the teacher.
 
 ## Data model (Firestore collections)
 
-All documents carry an `owner` (the writer's `uid`) and `createdAtMs`.
+All documents carry an `owner` (the writer's `uid`), an `ownerEmail` (the writer's lowercased
+email, used to share the teacher's library with students) and `createdAtMs`.
 
 - `wordvault_sources` — the full original text of everything ingested (your permanent record).
 - `wordvault_entries` — verbatim knowledge‑base passages: `text, title, subject, topic, type, keywords[], verified, sourceId`.
@@ -72,47 +73,26 @@ Firestore's 1 MB limit. Full‑resolution images are only used in‑memory at OC
 3. **Host it** — open `index.html` locally, or serve the repo as a static site
    (e.g. GitHub Pages). Sign in with the admin Google account to begin loading the syllabus.
 
-### Firestore security rules (single teacher — default)
+### Firestore security rules (shared class library — default)
+
+The teacher's **library** (syllabus + question bank) is shared with every signed‑in student so
+Ask answers are grounded in your material. Sharing is **automatic in the app** — every library doc
+is stamped with the writer's email (`ownerEmail`) — but Firestore's security rules are the real
+boundary, so you must deploy these rules once in the Firebase console for students to read your
+library. Replace the email with your `ADMIN_EMAIL` if it differs.
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
     match /{col}/{doc} {
-      allow read, write: if request.auth != null
-        && resource.data.owner == request.auth.uid;
-      allow create: if request.auth != null
-        && request.resource.data.owner == request.auth.uid;
-    }
-  }
-}
-```
-
-### Optional — a shared class library for students
-
-To let students read the teacher's bank/knowledge base:
-
-1. Put the **teacher's `uid`** in `SHARED_LIBRARY_UID` (top of the `<script>` in `index.html`).
-2. Allow signed‑in students to *read* (not write) only the teacher's **library** collections —
-   keep the **mistakes** bank (and attempts) owner‑only so one student's wrong answers are never
-   exposed to others:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{db}/documents {
-    // Library collections students may read from the teacher's account
-    match /{col}/{doc} {
+      // Read your own docs; ALSO read the teacher's shared library by email.
       allow read: if request.auth != null
-        && col in ['wordvault_sources','wordvault_entries','wordvault_questions']
         && (resource.data.owner == request.auth.uid
-            || resource.data.owner == "TEACHER_UID_HERE");
-      allow write, create: if request.auth != null
-        && request.resource.data.owner == request.auth.uid;
-    }
-    // Everything else (incl. wordvault_mistakes) stays strictly owner-only
-    match /{col}/{doc} {
-      allow read, write: if request.auth != null
+            || (col in ['wordvault_sources','wordvault_entries','wordvault_questions']
+                && resource.data.ownerEmail == 'chungzhikai@gmail.com'));
+      // You may only write/own your own docs.
+      allow write: if request.auth != null
         && resource.data.owner == request.auth.uid;
       allow create: if request.auth != null
         && request.resource.data.owner == request.auth.uid;
@@ -121,7 +101,18 @@ service cloud.firestore {
 }
 ```
 
-Students still write their own `wordvault_attempts`; only the teacher writes the library.
+Only the three library collections are shared. `wordvault_mistakes` (a student's wrong answers)
+and `wordvault_attempts` are **not** in the list, so they stay strictly owner‑only — students can
+never read them. Students still write their own `wordvault_attempts`; only the teacher writes the
+library.
+
+**Existing uploads** made before this feature are migrated automatically: the next time the teacher
+signs in, the app stamps `ownerEmail` onto any library docs that lack it (a one‑time, no‑op‑afterwards
+backfill), so you don't need to re‑upload anything.
+
+> Want a private, single‑teacher setup with **no** sharing instead? Drop the `ownerEmail` clause so
+> the read rule is just `resource.data.owner == request.auth.uid`. (Students then see only their own
+> data and Ask falls back to the model's general knowledge.)
 
 ---
 

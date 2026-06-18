@@ -1544,9 +1544,10 @@
     const ADMIN_EMAIL = "chungzhikai@gmail.com";
     const GEMINI_MODEL = "gemini-3.5-flash";
 
-    // OPTIONAL — to let students read the teacher's shared class library, paste the
-    // teacher's Firebase Auth uid here AND add the matching Firestore read rule
-    // documented in README.md. Left blank, every account simply sees its own data.
+    // Students automatically read the teacher's shared library by ADMIN_EMAIL (every library
+    // doc is stamped with an `ownerEmail`), so this is usually left blank. It remains as a
+    // LEGACY override: set it to the teacher's Firebase Auth uid to share by uid instead.
+    // Either way the matching Firestore read rule in README.md must be deployed.
     const SHARED_LIBRARY_UID = "";
 
     const SOURCES_COLLECTION = "wordvault_sources";
@@ -2066,6 +2067,7 @@
     async function loadAll() {
       try {
         await Promise.all([loadSources(), loadEntries(), loadQuestions(), loadMistakes()]);
+        if (state.isTeacher) await backfillOwnerEmail();
         renderEverything();
       } catch (err) {
         console.error(err);
@@ -2073,15 +2075,41 @@
       }
     }
 
-    // For students, questions/KB are owned by the teacher (ADMIN_EMAIL). We attempt to
-    // read the shared library; if Firestore rules forbid cross-user reads this simply
-    // returns the user's own data. (See README for enabling a shared class library.)
+    // One-time migration: stamp the teacher's email onto any library docs saved before
+    // email-based sharing existed, so students can read them. Runs on teacher sign-in and
+    // becomes a no-op once every doc carries an ownerEmail. Safe and non-fatal if it fails.
+    async function backfillOwnerEmail() {
+      const email = (state.user.email || "").toLowerCase();
+      if (!email) return;
+      const targets = [];
+      state.sources.forEach(s => { if (!s.ownerEmail) targets.push([SOURCES_COLLECTION, s.id, s]); });
+      state.entries.forEach(e => { if (!e.ownerEmail) targets.push([ENTRIES_COLLECTION, e.id, e]); });
+      state.questions.forEach(q => { if (!q.ownerEmail) targets.push([QUESTIONS_COLLECTION, q.id, q]); });
+      if (!targets.length) return;
+      try {
+        for (let i = 0; i < targets.length; i += 450) {  // Firestore caps batches at 500 ops
+          const batch = writeBatch(db);
+          targets.slice(i, i + 450).forEach(([col, id, obj]) => {
+            batch.set(doc(db, col, id), { ownerEmail: email }, { merge: true });
+            obj.ownerEmail = email;  // keep local state in sync
+          });
+          await batch.commit();
+        }
+        console.log("[WordVault] shared " + targets.length + " existing library doc(s) with students.");
+      } catch (err) {
+        console.warn("ownerEmail backfill failed (non-fatal):", err);
+      }
+    }
+
+    // The teacher's library (sources/entries/questions) is shared with every student.
+    // Each library doc is stamped with the writer's lowercased email, so students can read
+    // the teacher's material by the known ADMIN_EMAIL — no UID configuration needed.
+    // (Firestore security rules must allow this cross-account read — see README.)
     function libraryOwnerFilter() {
-      // Teachers always read their own library. Students read the shared class
-      // library when SHARED_LIBRARY_UID is configured (and Firestore rules allow it);
-      // otherwise they fall back to their own account's data.
-      if (!state.isTeacher && SHARED_LIBRARY_UID) return where("owner", "==", SHARED_LIBRARY_UID);
-      return where("owner", "==", state.user.uid);
+      if (state.isTeacher) return where("owner", "==", state.user.uid);
+      // Legacy: an explicit teacher UID still works if one was configured.
+      if (SHARED_LIBRARY_UID) return where("owner", "==", SHARED_LIBRARY_UID);
+      return where("ownerEmail", "==", ADMIN_EMAIL.toLowerCase());
     }
 
     async function loadQuestions() {
@@ -2114,6 +2142,7 @@
       const ref = doc(collection(db, SOURCES_COLLECTION));
       const data = {
         owner: state.user.uid,
+        ownerEmail: (state.user.email || "").toLowerCase(),
         rawText,
         fileName: fileName || "Pasted text",
         createdAtMs: Date.now(),
@@ -2130,6 +2159,7 @@
         const ref = doc(collection(db, ENTRIES_COLLECTION));
         const data = {
           owner: state.user.uid,
+          ownerEmail: (state.user.email || "").toLowerCase(),
           text: e.text,
           title: e.title || "",
           subject: e.subject || "General",
@@ -2177,6 +2207,7 @@
         const ref = doc(collection(db, QUESTIONS_COLLECTION));
         const data = {
           owner: state.user.uid,
+          ownerEmail: (state.user.email || "").toLowerCase(),
           questionText: q.questionText || "",
           imageDescription: q.imageDescription || "",
           subject: normalizeSubject(q.subject),
@@ -2212,7 +2243,7 @@
     async function logAttempt(data) {
       try {
         const ref = doc(collection(db, ATTEMPTS_COLLECTION));
-        await setDoc(ref, { owner: state.user.uid, createdAtMs: Date.now(), ...data });
+        await setDoc(ref, { owner: state.user.uid, ownerEmail: (state.user.email || "").toLowerCase(), createdAtMs: Date.now(), ...data });
       } catch (err) { console.warn("logAttempt failed (non-fatal):", err); }
     }
 
@@ -2236,6 +2267,7 @@
       const ref = doc(collection(db, MISTAKES_COLLECTION));
       const data = {
         owner: state.user.uid,
+        ownerEmail: (state.user.email || "").toLowerCase(),
         questionText: m.questionText || "",
         imageDescription: m.imageDescription || "",
         studentAnswer: m.studentAnswer || "",
