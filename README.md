@@ -163,6 +163,25 @@ backfill), so you don't need to re‑upload anything.
 
 ---
 
+## Writing help on every field
+
+Every text box in the app — questions, answers, comments, the syllabus paste box, the
+Ask/search bars, the optional hints and the inline answer‑key editors — carries two small
+helpers in its corner:
+
+- **✨ Improve** — sends just that box's text to Gemini to fix **grammar, spelling and
+  phrasing only**. Your meaning, facts, numbers, names and answer keys are never changed,
+  and the box keeps roughly the same length; tap **↩** to undo and restore your original.
+- **🎤 Speak** — records your microphone and transcribes it with Gemini, inserting the words
+  at the cursor. Requires microphone permission and a secure page (https or localhost); the
+  button hides itself where recording isn't supported.
+
+The live **quick‑filter** boxes are deliberately left plain (they filter as you type, so
+there's nothing to polish). Nothing extra is stored — both helpers reuse the same Firebase
+AI Logic / Gemini stack the rest of the app already runs on.
+
+---
+
 ## Notes & limits
 
 - OCR/answer quality depends on image clarity and on how much syllabus material you've
