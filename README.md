@@ -73,13 +73,45 @@ Firestore's 1 MB limit. Full‑resolution images are only used in‑memory at OC
 3. **Host it** — open `index.html` locally, or serve the repo as a static site
    (e.g. GitHub Pages). Sign in with the admin Google account to begin loading the syllabus.
 
-### Firestore security rules (shared class library — default)
+### Firestore security rules (shared class library)
 
 The teacher's **library** (syllabus + question bank) is shared with every signed‑in student so
 Ask answers are grounded in your material. Sharing is **automatic in the app** — every library doc
 is stamped with the writer's email (`ownerEmail`) — but Firestore's security rules are the real
-boundary, so you must deploy these rules once in the Firebase console for students to read your
-library. Replace the email with your `ADMIN_EMAIL` if it differs.
+boundary, so you must publish a rule once in the Firebase console for students to read your library.
+Replace `chungzhikai@gmail.com` below with your `ADMIN_EMAIL` if it differs.
+
+> ⚠️ **Firestore rules are shared by the whole database, not per‑app.** Every app using the same
+> (default) Firestore database in this project obeys the *same* published ruleset. If you share this
+> project with other apps, **do not** paste the full ruleset below over your existing rules — it would
+> govern their collections too. Use the *additive* snippet instead.
+
+**Recommended (project shared with other apps) — add, don't replace.** Keep your current rules and
+add these blocks inside your existing `match /databases/{database}/documents { … }`. Firestore grants
+access if *any* matching rule allows it, and a literal‑path `match` only ever *adds* permission, so
+this touches no other collection and removes no existing access:
+
+```
+// Let any signed-in student READ the teacher's WordVault library.
+match /wordvault_sources/{doc} {
+  allow read: if request.auth != null
+    && resource.data.ownerEmail == 'chungzhikai@gmail.com';
+}
+match /wordvault_entries/{doc} {
+  allow read: if request.auth != null
+    && resource.data.ownerEmail == 'chungzhikai@gmail.com';
+}
+match /wordvault_questions/{doc} {
+  allow read: if request.auth != null
+    && resource.data.ownerEmail == 'chungzhikai@gmail.com';
+}
+```
+
+This assumes your existing rules already let the teacher *write* the `wordvault_*` collections (they
+must, since uploads work today). It adds only the student cross‑account *read*.
+
+**Alternative (WordVault has the project to itself) — complete ruleset.** Only use this if no other
+app shares the database, since it replaces everything:
 
 ```
 rules_version = '2';
@@ -101,8 +133,8 @@ service cloud.firestore {
 }
 ```
 
-Only the three library collections are shared. `wordvault_mistakes` (a student's wrong answers)
-and `wordvault_attempts` are **not** in the list, so they stay strictly owner‑only — students can
+Either way, only the three library collections are shared. `wordvault_mistakes` (a student's wrong
+answers) and `wordvault_attempts` are **not** listed, so they stay strictly owner‑only — students can
 never read them. Students still write their own `wordvault_attempts`; only the teacher writes the
 library.
 
@@ -110,9 +142,8 @@ library.
 signs in, the app stamps `ownerEmail` onto any library docs that lack it (a one‑time, no‑op‑afterwards
 backfill), so you don't need to re‑upload anything.
 
-> Want a private, single‑teacher setup with **no** sharing instead? Drop the `ownerEmail` clause so
-> the read rule is just `resource.data.owner == request.auth.uid`. (Students then see only their own
-> data and Ask falls back to the model's general knowledge.)
+> Want a private, single‑teacher setup with **no** sharing instead? Simply don't add the rule above —
+> students then see only their own data and Ask falls back to the model's general knowledge.
 
 ---
 
