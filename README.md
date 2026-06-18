@@ -58,9 +58,21 @@ email, used to share the teacher's library with students) and `createdAtMs`.
   `mistakeTags[], subject, topic, keywords[], questionId, thumb`.
   Retrieved at marking time so the AI flags the same mistakes and reuses the teacher's comments.
 - `wordvault_attempts` — a log of Ask/Mark interactions (non‑fatal if it fails).
+- `wordvault_flashcards` — **each user's own** spaced‑repetition deck (students included):
+  `front, back, subject, topic, source` plus the scheduling state
+  `ef, reps, intervalDays, dueAtMs, lastReviewedMs, lapses`. Strictly owner‑only — a
+  student's deck is never shared or readable by anyone else (it is **not** an `ownerEmail`
+  shared collection).
 
 Question thumbnails are downscaled JPEGs stored inline so each doc stays well under
 Firestore's 1 MB limit. Full‑resolution images are only used in‑memory at OCR time.
+
+> **Flashcards & Firestore rules.** Flashcards are written by every signed‑in user to their
+> own `owner == uid` docs — exactly like `wordvault_attempts`, which students already write —
+> so if your rules let a user read/write their own documents (as they must today), no rule
+> change is needed. If you run a strict per‑collection ruleset, add an owner‑only rule for
+> `wordvault_flashcards` (allow read/write/create if `request.auth.uid` matches the doc's
+> `owner`). It is deliberately left out of the shared‑library read rules.
 
 ---
 
@@ -179,6 +191,28 @@ helpers in its corner:
 The live **quick‑filter** boxes are deliberately left plain (they filter as you type, so
 there's nothing to polish). Nothing extra is stored — both helpers reuse the same Firebase
 AI Logic / Gemini stack the rest of the app already runs on.
+
+---
+
+## Flashcards (spaced repetition)
+
+Every signed‑in user gets a private **🗂️ Flashcards** deck (students see it next to **Ask**).
+
+- **Make a card in one tap.** After any **Ask** answer, hit **🗂️ Save as flashcard** and the AI
+  condenses the Q&A into a *short* card — a crisp front (“What is frictional force?”) and a
+  brief back (the definition), not the whole essay. You can also write cards by hand (the
+  front/back boxes have the ✨ improve and 🎤 voice helpers too).
+- **Manage the deck.** See every card with its next‑due time and a memory‑strength bar; **edit**
+  ✏️ or **delete** 🗑️ any card; filter by word.
+- **Practise on the memory curve.** Cards are scheduled with **SM‑2** (the researched
+  SuperMemo / Anki algorithm) and surfaced using the **Ebbinghaus forgetting curve**: each
+  card's *retrievability* `R = exp(−elapsed / stability)` decays over time, and the ones you're
+  closest to forgetting are shown first — so you revise at the moment it does the most good.
+  In practice you reveal the answer and grade yourself **Again / Hard / Good / Easy**; the next
+  interval (10 min → days → months) is computed from your grades, and lapsed cards loop back
+  within the same session.
+
+Each deck is strictly private to its owner (see the rules note above).
 
 ---
 
